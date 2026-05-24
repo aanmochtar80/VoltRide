@@ -198,12 +198,12 @@ class VoltRideTheme {
         type: BottomNavigationBarType.fixed,
         elevation: 0,
       ),
-      cardTheme: const CardThemeData(
+      cardTheme: CardThemeData(
         color: card,
         elevation: 0,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(20),
-          side: BorderSide(color: cardBorder, width: 1),
+          side: const BorderSide(color: cardBorder, width: 1),
         ),
       ),
       elevatedButtonTheme: ElevatedButtonThemeData(
