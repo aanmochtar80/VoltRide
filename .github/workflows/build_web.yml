@@ -1,0 +1,33 @@
+name: Build Flutter Web
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch: # Memungkinkan Anda memicu build secara manual di web GitHub
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Set up Flutter SDK
+        uses: subosito/flutter-action@v2
+        with:
+          channel: 'stable'
+          flutter-version: '3.19.6' # Versi stabil yang kompatibel dengan dependensi proyek
+
+      - name: Get dependencies
+        run: flutter pub get
+
+      - name: Build Web App
+        run: flutter build web --release
+
+      - name: Upload Web Build Artifact
+        uses: actions/upload-artifact@v3
+        with:
+          name: voltride-web-build
+          path: build/web/
