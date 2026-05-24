@@ -69,7 +69,7 @@ class TripHistoryPage extends ConsumerWidget {
                             padding: const EdgeInsets.symmetric(horizontal: 40),
                             child: Text(
                               'Trips you record using the Start Trip button on the dashboard will appear here.',
-                              textAlign: Center,
+                              textAlign: TextAlign.center,
                               style: TextStyle(
                                 color: VoltRideTheme.textSecondary.withOpacity(0.7),
                                 fontSize: 13,

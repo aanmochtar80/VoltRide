@@ -11,6 +11,8 @@ import 'package:voltride/widgets/ble_status_indicator.dart';
 import 'package:voltride/widgets/mini_map_widget.dart';
 import 'package:voltride/widgets/speedometer_widget.dart';
 import 'package:voltride/widgets/telemetry_card_widget.dart';
+import 'package:voltride/services/ble_service.dart';
+
 
 class DashboardPage extends ConsumerStatefulWidget {
   const DashboardPage({super.key});

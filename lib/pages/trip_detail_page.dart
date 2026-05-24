@@ -285,12 +285,14 @@ class TripDetailPage extends ConsumerWidget {
                                   final diff = pt.timestamp.difference(trip.startTime);
                                   return Padding(
                                     padding: const EdgeInsets.only(top: 4.0),
-                                    style: const TextStyle(
-                                      color: VoltRideTheme.textMuted,
-                                      fontSize: 9,
-                                      fontWeight: FontWeight.w600,
+                                    child: Text(
+                                      '${diff.inMinutes}m',
+                                      style: const TextStyle(
+                                        color: VoltRideTheme.textMuted,
+                                        fontSize: 9,
+                                        fontWeight: FontWeight.w600,
+                                      ),
                                     ),
-                                    child: Text('${diff.inMinutes}m'),
                                   );
                                 }
                                 return const SizedBox();

@@ -71,7 +71,7 @@ class SettingsPage extends ConsumerWidget {
                   ),
                   const Divider(color: VoltRideTheme.cardBorder, height: 1),
                   ListTile(
-                    leading: const Icon(Icons.stop_circle_outline, color: VoltRideTheme.alertRed),
+                    leading: const Icon(Icons.stop_circle_outlined, color: VoltRideTheme.alertRed),
                     title: const Text('Auto-Stop Recording', style: TextStyle(fontWeight: FontWeight.w600)),
                     subtitle: const Text('Automatically stop recording when idle for 5 minutes',
                         style: TextStyle(color: VoltRideTheme.textSecondary, fontSize: 12)),
@@ -193,11 +193,14 @@ class SettingsPage extends ConsumerWidget {
   Widget _buildSectionHeader(String title) {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 8.0),
-      style: const TextStyle(
-        color: VoltRideTheme.textPrimary,
-        fontSize: 11,
-        fontWeight: FontWeight.bold,
-        letterSpacing: 1.5,
+      child: Text(
+        title,
+        style: const TextStyle(
+          color: VoltRideTheme.textPrimary,
+          fontSize: 11,
+          fontWeight: FontWeight.bold,
+          letterSpacing: 1.5,
+        ),
       ),
     );
   }
