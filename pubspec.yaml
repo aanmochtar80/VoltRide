@@ -1,0 +1,62 @@
+name: voltride
+description: VoltRide - GPS Speedometer, Trip Recorder & JK-BMS Battery Monitor for Electric Vehicles
+publish_to: 'none'
+version: 1.0.0+1
+
+environment:
+  sdk: '>=3.2.0 <4.0.0'
+
+dependencies:
+  flutter:
+    sdk: flutter
+  
+  # State Management
+  flutter_riverpod: ^2.4.9
+  riverpod_annotation: ^2.3.3
+  
+  # Database
+  drift: ^2.14.1
+  sqlite3_flutter_libs: ^0.5.18
+  sqflite: ^2.3.0
+  path_provider: ^2.1.1
+  path: ^1.8.3
+  
+  # Maps
+  flutter_map: ^6.1.0
+  latlong2: ^0.9.0
+  
+  # GPS / Location
+  geolocator: ^10.1.0
+  
+  # Bluetooth BLE
+  flutter_blue_plus: ^1.31.0
+  
+  # Charts
+  fl_chart: ^0.66.0
+  
+  # UI
+  google_fonts: ^6.1.0
+  cupertino_icons: ^1.0.6
+  shimmer: ^3.0.0
+  
+  # Utils
+  intl: ^0.19.0
+  uuid: ^4.2.2
+  share_plus: ^7.2.1
+  permission_handler: ^11.1.0
+  wakelock_plus: ^1.1.4
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^3.0.1
+  drift_dev: ^2.14.1
+  build_runner: ^2.4.7
+  riverpod_generator: ^2.3.9
+
+flutter:
+  uses-material-design: true
+  
+  assets:
+    - assets/
+    - assets/images/
