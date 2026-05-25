@@ -39,13 +39,12 @@ class GpsService {
   bool get isTracking => _isTracking;
 
   Future<bool> checkAndRequestPermission() async {
+    if (kIsWeb) return false;
+
     try {
-      // On web, isLocationServiceEnabled may not work correctly, skip it
-      if (!kIsWeb) {
-        bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
-        if (!serviceEnabled) {
-          return false;
-        }
+      bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
+      if (!serviceEnabled) {
+        return false;
       }
 
       LocationPermission permission = await Geolocator.checkPermission();
@@ -124,6 +123,8 @@ class GpsService {
   }
 
   Future<GpsData?> getCurrentPosition() async {
+    if (kIsWeb) return null;
+    
     try {
       final hasPermission = await checkAndRequestPermission();
       if (!hasPermission) return null;

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'dart:ui';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -74,7 +75,9 @@ void main() async {
 
   // Keep screen on during dashboard/telemetry usage
   try {
-    await WakelockPlus.enable();
+    if (!kIsWeb) {
+      await WakelockPlus.enable();
+    }
   } catch (e) {
     debugPrint('Wakelock not supported on this platform: $e');
   }
