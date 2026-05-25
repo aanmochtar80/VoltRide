@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:permission_handler/permission_handler.dart';
@@ -51,21 +52,33 @@ class _SplashPageState extends ConsumerState<SplashPage>
   Future<void> _startInitSequence() async {
     await Future.delayed(const Duration(milliseconds: 1500));
     
-    setState(() {
-      _statusText = 'Checking Location & BLE permissions...';
-    });
+    if (kIsWeb) {
+      // On web, skip native permission_handler checks to avoid blocking/crashing
+      setState(() {
+        _statusText = 'Checking Location & BLE permissions...';
+      });
+      await Future.delayed(const Duration(milliseconds: 500));
+    } else {
+      setState(() {
+        _statusText = 'Checking Location & BLE permissions...';
+      });
 
-    // Request permissions using permission_handler
-    Map<Permission, PermissionStatus> statuses = await [
-      Permission.location,
-      Permission.bluetooth,
-      Permission.bluetoothScan,
-      Permission.bluetoothConnect,
-    ].request();
+      try {
+        // Request permissions using permission_handler
+        Map<Permission, PermissionStatus> statuses = await [
+          Permission.location,
+          Permission.bluetooth,
+          Permission.bluetoothScan,
+          Permission.bluetoothConnect,
+        ].request();
 
-    bool hasLocation = statuses[Permission.location]?.isGranted ?? false;
-    bool hasBle = (statuses[Permission.bluetooth]?.isGranted ?? false) ||
-                  (statuses[Permission.bluetoothScan]?.isGranted ?? false);
+        bool hasLocation = statuses[Permission.location]?.isGranted ?? false;
+        bool hasBle = (statuses[Permission.bluetooth]?.isGranted ?? false) ||
+                      (statuses[Permission.bluetoothScan]?.isGranted ?? false);
+      } catch (e) {
+        debugPrint('Permission handler error: $e');
+      }
+    }
 
     setState(() {
       _statusText = 'Configuring Telemetry Service...';
