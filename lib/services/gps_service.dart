@@ -87,30 +87,34 @@ class GpsService {
       distanceFilter: 3,
     );
 
-    _positionSubscription = Geolocator.getPositionStream(
-      locationSettings: locationSettings,
-    ).listen(
-      (Position position) {
-        // Convert m/s to km/h
-        final speedKmh = (position.speed * 3.6).clamp(0.0, 200.0);
-        
-        final gpsData = GpsData(
-          latitude: position.latitude,
-          longitude: position.longitude,
-          altitude: position.altitude,
-          speedKmh: speedKmh,
-          heading: position.heading,
-          accuracy: position.accuracy,
-          timestamp: position.timestamp ?? DateTime.now(),
-        );
+    try {
+      _positionSubscription = Geolocator.getPositionStream(
+        locationSettings: locationSettings,
+      ).listen(
+        (Position position) {
+          // Convert m/s to km/h
+          final speedKmh = (position.speed * 3.6).clamp(0.0, 200.0);
+          
+          final gpsData = GpsData(
+            latitude: position.latitude,
+            longitude: position.longitude,
+            altitude: position.altitude,
+            speedKmh: speedKmh,
+            heading: position.heading,
+            accuracy: position.accuracy,
+            timestamp: position.timestamp ?? DateTime.now(),
+          );
 
-        _lastData = gpsData;
-        _controller.add(gpsData);
-      },
-      onError: (error) {
-        debugPrint('GPS Error: $error');
-      },
-    );
+          _lastData = gpsData;
+          _controller.add(gpsData);
+        },
+        onError: (error) {
+          debugPrint('GPS Error: $error');
+        },
+      );
+    } catch (e) {
+      debugPrint('GPS getPositionStream Error: $e');
+    }
   }
 
   Future<void> stopTracking() async {

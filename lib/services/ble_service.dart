@@ -41,6 +41,13 @@ class BleService {
     
     final results = <ScanResult>[];
     
+    if (kIsWeb) {
+      // Bypass on Web
+      await Future.delayed(const Duration(seconds: 1));
+      _updateState(BleConnectionState.disconnected);
+      return results;
+    }
+    
     try {
       await FlutterBluePlus.startScan(timeout: timeout);
       
@@ -61,12 +68,19 @@ class BleService {
 
   Stream<List<ScanResult>> scanStream({Duration timeout = const Duration(seconds: 10)}) {
     _updateState(BleConnectionState.scanning);
+    
+    if (kIsWeb) {
+      return Stream.periodic(const Duration(seconds: 1), (_) => []).take(1);
+    }
+    
     FlutterBluePlus.startScan(timeout: timeout);
     return FlutterBluePlus.scanResults;
   }
 
   void stopScan() {
-    FlutterBluePlus.stopScan();
+    if (!kIsWeb) {
+      FlutterBluePlus.stopScan();
+    }
     if (_state == BleConnectionState.scanning) {
       _updateState(BleConnectionState.disconnected);
     }
@@ -77,6 +91,8 @@ class BleService {
     String serviceUuid = '0000ffe0-0000-1000-8000-00805f9b34fb',
     String characteristicUuid = '0000ffe1-0000-1000-8000-00805f9b34fb',
   }) async {
+    if (kIsWeb) return false;
+    
     try {
       _updateState(BleConnectionState.connecting);
       _lastDeviceId = device.remoteId.str;
