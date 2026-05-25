@@ -28,24 +28,24 @@ jobs:
       - name: Configure Android Support
         run: |
           rm -rf android
-          flutter create . --platforms android
+          echo "Running flutter create..."
+          flutter create . --platforms android > create_log.txt 2>&1 || true
+          cat create_log.txt
           
-          # Force compile SDK 34
-          sed -i 's/compileSdkVersion.*/compileSdkVersion 34/g' android/app/build.gradle
-          sed -i 's/compileSdk .*/compileSdk 34/g' android/app/build.gradle
-          
-          # Force min SDK 21
-          sed -i 's/minSdkVersion.*/minSdkVersion 21/g' android/app/build.gradle
-          sed -i 's/minSdk .*/minSdk 21/g' android/app/build.gradle
-          
-          # Upgrade Kotlin version (Flutter <3.16 pattern)
-          if [ -f android/build.gradle ]; then
-            sed -i "s/ext.kotlin_version = '.+'/ext.kotlin_version = '1.9.22'/g" android/build.gradle
-          fi
-          
-          # Upgrade Kotlin version (Flutter >=3.16 pattern in settings.gradle)
-          if [ -f android/settings.gradle ]; then
-            sed -i 's/id "org.jetbrains.kotlin.android" version ".*" apply false/id "org.jetbrains.kotlin.android" version "1.9.22" apply false/g' android/settings.gradle
+          if [ -d "android/app" ]; then
+            echo "Android folder created successfully."
+            sed -i 's/compileSdkVersion.*/compileSdkVersion 34/g' android/app/build.gradle || true
+            sed -i 's/compileSdk .*/compileSdk 34/g' android/app/build.gradle || true
+            sed -i 's/minSdkVersion.*/minSdkVersion 21/g' android/app/build.gradle || true
+            sed -i 's/minSdk .*/minSdk 21/g' android/app/build.gradle || true
+            if [ -f android/build.gradle ]; then
+              sed -i "s/ext.kotlin_version = '.+'/ext.kotlin_version = '1.9.22'/g" android/build.gradle || true
+            fi
+            if [ -f android/settings.gradle ]; then
+              sed -i 's/id "org.jetbrains.kotlin.android" version ".*" apply false/id "org.jetbrains.kotlin.android" version "1.9.22" apply false/g' android/settings.gradle || true
+            fi
+          else
+            echo "Failed to create android folder."
           fi
 
       - name: Get dependencies
