@@ -1,5 +1,6 @@
 import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
+import 'package:flutter/foundation.dart';
 import 'package:voltride/models/trip.dart';
 import 'package:voltride/models/trip_point.dart';
 import 'dart:async';
@@ -10,6 +11,11 @@ class AppDatabase {
   static AppDatabase? _instance;
   static Database? _database;
 
+  // In-memory fallback for Web platform
+  final List<Trip> _webTrips = [];
+  final List<TripPoint> _webTripPoints = [];
+  final List<Map<String, dynamic>> _webBatteryLogs = [];
+
   AppDatabase._();
 
   static AppDatabase get instance {
@@ -18,6 +24,9 @@ class AppDatabase {
   }
 
   Future<Database> get database async {
+    if (kIsWeb) {
+      throw UnsupportedError('sqflite database cannot be opened on web. Use in-memory fallback.');
+    }
     _database ??= await _initDatabase();
     return _database!;
   }
@@ -96,16 +105,33 @@ class AppDatabase {
 
   // ── Trip Operations ──
   Future<void> insertTrip(Trip trip) async {
+    if (kIsWeb) {
+      _webTrips.add(trip);
+      return;
+    }
     final db = await database;
     await db.insert('trips', trip.toMap());
   }
 
   Future<void> updateTrip(Trip trip) async {
+    if (kIsWeb) {
+      final index = _webTrips.indexWhere((t) => t.id == trip.id);
+      if (index != -1) {
+        _webTrips[index] = trip;
+      }
+      return;
+    }
     final db = await database;
     await db.update('trips', trip.toMap(), where: 'id = ?', whereArgs: [trip.id]);
   }
 
   Future<void> deleteTrip(String tripId) async {
+    if (kIsWeb) {
+      _webTrips.removeWhere((t) => t.id == tripId);
+      _webTripPoints.removeWhere((tp) => tp.tripId == tripId);
+      _webBatteryLogs.removeWhere((bl) => bl['tripId'] == tripId);
+      return;
+    }
     final db = await database;
     await db.delete('trip_points', where: 'tripId = ?', whereArgs: [tripId]);
     await db.delete('battery_logs', where: 'tripId = ?', whereArgs: [tripId]);
@@ -113,6 +139,11 @@ class AppDatabase {
   }
 
   Future<Trip?> getActiveTrip() async {
+    if (kIsWeb) {
+      final index = _webTrips.indexWhere((t) => t.isActive);
+      if (index == -1) return null;
+      return _webTrips[index];
+    }
     final db = await database;
     final results = await db.query('trips', where: 'isActive = 1', limit: 1);
     if (results.isEmpty) return null;
@@ -120,12 +151,22 @@ class AppDatabase {
   }
 
   Future<List<Trip>> getAllTrips() async {
+    if (kIsWeb) {
+      final list = List<Trip>.from(_webTrips);
+      list.sort((a, b) => b.startTime.compareTo(a.startTime));
+      return list;
+    }
     final db = await database;
     final results = await db.query('trips', orderBy: 'startTime DESC');
     return results.map((m) => Trip.fromMap(m)).toList();
   }
 
   Future<Trip?> getTripById(String id) async {
+    if (kIsWeb) {
+      final index = _webTrips.indexWhere((t) => t.id == id);
+      if (index == -1) return null;
+      return _webTrips[index];
+    }
     final db = await database;
     final results = await db.query('trips', where: 'id = ?', whereArgs: [id]);
     if (results.isEmpty) return null;
@@ -134,11 +175,19 @@ class AppDatabase {
 
   // ── Trip Point Operations ──
   Future<void> insertTripPoint(TripPoint point) async {
+    if (kIsWeb) {
+      _webTripPoints.add(point);
+      return;
+    }
     final db = await database;
     await db.insert('trip_points', point.toMap());
   }
 
   Future<void> insertTripPointsBatch(List<TripPoint> points) async {
+    if (kIsWeb) {
+      _webTripPoints.addAll(points);
+      return;
+    }
     final db = await database;
     final batch = db.batch();
     for (final point in points) {
@@ -148,6 +197,11 @@ class AppDatabase {
   }
 
   Future<List<TripPoint>> getTripPoints(String tripId) async {
+    if (kIsWeb) {
+      final list = _webTripPoints.where((tp) => tp.tripId == tripId).toList();
+      list.sort((a, b) => a.timestamp.compareTo(b.timestamp));
+      return list;
+    }
     final db = await database;
     final results = await db.query(
       'trip_points',
@@ -160,11 +214,16 @@ class AppDatabase {
 
   // ── Battery Log Operations ──
   Future<void> insertBatteryLog(Map<String, dynamic> log) async {
+    if (kIsWeb) {
+      _webBatteryLogs.add(log);
+      return;
+    }
     final db = await database;
     await db.insert('battery_logs', log);
   }
 
   Future<void> close() async {
+    if (kIsWeb) return;
     final db = await database;
     await db.close();
     _database = null;
