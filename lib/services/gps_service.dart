@@ -39,24 +39,33 @@ class GpsService {
   bool get isTracking => _isTracking;
 
   Future<bool> checkAndRequestPermission() async {
-    bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
-    if (!serviceEnabled) {
-      return false;
-    }
+    try {
+      // On web, isLocationServiceEnabled may not work correctly, skip it
+      if (!kIsWeb) {
+        bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
+        if (!serviceEnabled) {
+          return false;
+        }
+      }
 
-    LocationPermission permission = await Geolocator.checkPermission();
-    if (permission == LocationPermission.denied) {
-      permission = await Geolocator.requestPermission();
+      LocationPermission permission = await Geolocator.checkPermission();
       if (permission == LocationPermission.denied) {
+        permission = await Geolocator.requestPermission();
+        if (permission == LocationPermission.denied) {
+          return false;
+        }
+      }
+
+      if (permission == LocationPermission.deniedForever) {
         return false;
       }
-    }
 
-    if (permission == LocationPermission.deniedForever) {
+      return true;
+    } catch (e) {
+      debugPrint('GPS permission check error: $e');
+      // On web, permission errors should not crash the app
       return false;
     }
-
-    return true;
   }
 
   Future<void> startTracking({
