@@ -51,10 +51,21 @@ jobs:
         run: flutter pub get
 
       - name: Build APK
-        run: flutter build apk --release
+        run: flutter build apk --release > build_log.txt 2>&1
+        continue-on-error: true
+
+      - name: Show Build Log
+        run: cat build_log.txt
 
       - name: Upload APK Artifact
         uses: actions/upload-artifact@v4
         with:
           name: voltride-android-apk
           path: build/app/outputs/flutter-apk/app-release.apk
+
+      - name: Upload Build Log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-log
+          path: build_log.txt
