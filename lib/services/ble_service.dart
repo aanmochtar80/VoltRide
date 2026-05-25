@@ -70,7 +70,7 @@ class BleService {
     _updateState(BleConnectionState.scanning);
     
     if (kIsWeb) {
-      return Stream.periodic(const Duration(seconds: 1), (_) => []).take(1);
+      return Stream.periodic(const Duration(seconds: 1), (_) => <ScanResult>[]).take(1);
     }
     
     FlutterBluePlus.startScan(timeout: timeout);
