@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <base href="/">
+  <meta charset="UTF-8">
+  <meta content="IE=Edge" http-equiv="X-UA-Compatible">
+  <meta name="description" content="VoltRide - GPS Speedometer, Trip Recorder & JK-BMS Battery Monitor for Electric Vehicles">
+
+  <!-- iOS meta tags & icons -->
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black">
+  <meta name="apple-mobile-web-app-title" content="VoltRide">
+  <link rel="apple-touch-icon" href="icons/Icon-192.png">
+
+  <!-- Favicon -->
+  <link rel="icon" type="image/png" href="favicon.png"/>
+
+  <title>VoltRide EV Dashboard</title>
+  <link rel="manifest" href="manifest.json">
+
+  <style>
+    html, body {
+      background-color: #0A0E1A;
+      margin: 0;
+      padding: 0;
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+    }
+    /* Isolate Flutter app into a dedicated div to prevent tunnel script crashes */
+    #flutter_app {
+      width: 100%;
+      height: 100%;
+      display: block;
+      position: absolute;
+      top: 0;
+      left: 0;
+      z-index: 1;
+    }
+    
+    /* Neon Glow Loading Splash (Visible while main.dart.js loads) */
+    .loading-container {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      width: 100%;
+      height: 100%;
+      position: absolute;
+      top: 0;
+      left: 0;
+      z-index: 0;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    }
+
+    .neon-bolt {
+      width: 120px;
+      height: 120px;
+      border-radius: 50%;
+      background-color: rgba(0, 212, 255, 0.05);
+      border: 2px solid rgba(0, 212, 255, 0.3);
+      box-shadow: 0 0 30px rgba(0, 212, 255, 0.2);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin-bottom: 32px;
+      animation: pulse 2s infinite ease-in-out;
+    }
+
+    .neon-title {
+      font-size: 44px;
+      font-weight: 900;
+      letter-spacing: 8px;
+      color: #FFFFFF;
+      text-shadow: 0 0 15px rgba(0, 212, 255, 0.8);
+      margin-bottom: 8px;
+    }
+
+    .neon-subtitle {
+      font-size: 10px;
+      font-weight: 600;
+      color: #8892B0;
+      letter-spacing: 2px;
+    }
+
+    .spinner {
+      width: 40px;
+      height: 40px;
+      border: 3px solid rgba(0, 255, 136, 0.1);
+      border-top: 3px solid #00FF88;
+      border-radius: 50%;
+      margin-top: 80px;
+      animation: spin 1s linear infinite;
+    }
+
+    @keyframes spin {
+      0% { transform: rotate(0deg); }
+      100% { transform: rotate(360deg); }
+    }
+
+    @keyframes pulse {
+      0% { box-shadow: 0 0 20px rgba(0, 212, 255, 0.1); border-color: rgba(0, 212, 255, 0.2); }
+      50% { box-shadow: 0 0 40px rgba(0, 212, 255, 0.4); border-color: rgba(0, 212, 255, 0.6); }
+      100% { box-shadow: 0 0 20px rgba(0, 212, 255, 0.1); border-color: rgba(0, 212, 255, 0.2); }
+    }
+  </style>
+</head>
+<body>
+  <!-- Dedicated host element for Flutter Web app -->
+  <div id="flutter_app"></div>
+
+  <!-- HTML Loading Screen -->
+  <div class="loading-container">
+    <div class="neon-bolt">
+      <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="#00D4FF" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon>
+      </svg>
+    </div>
+    <div class="neon-title">VOLTRIDE</div>
+    <div class="neon-subtitle">EV TELEMETRY & SMART DASHBOARD</div>
+    <div class="spinner"></div>
+  </div>
+
+  <script src="flutter.js" defer></script>
+  <script>
+    window.addEventListener('load', function(ev) {
+      // Download main.dart.js and register hostElement inside the dedicated div
+      _flutter.loader.loadEntrypoint({
+        serviceWorker: {
+          serviceWorkerVersion: {{flutter_service_worker_version}},
+        },
+        onEntrypointLoaded: function(engineInitializer) {
+          engineInitializer.initializeEngine({
+            hostElement: document.querySelector('#flutter_app')
+          }).then(function(appRunner) {
+            appRunner.runApp();
+          });
+        }
+      });
+    });
+  </script>
+</body>
+</html>
