@@ -26,7 +26,12 @@ jobs:
           channel: 'stable'
 
       - name: Configure Android Support
-        run: flutter create . --platforms android
+        run: |
+          flutter create . --platforms android
+          sed -i 's/flutter.minSdkVersion/21/g' android/app/build.gradle
+          sed -i 's/minSdkVersion flutter.minSdkVersion/minSdkVersion 21/g' android/app/build.gradle
+          sed -i 's/flutter.compileSdkVersion/34/g' android/app/build.gradle
+          sed -i 's/compileSdkVersion flutter.compileSdkVersion/compileSdkVersion 34/g' android/app/build.gradle
 
       - name: Get dependencies
         run: flutter pub get
