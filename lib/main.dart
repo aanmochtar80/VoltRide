@@ -3,12 +3,18 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'dart:ui';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_blue_plus/flutter_blue_plus.dart';
 import 'package:wakelock_plus/wakelock_plus.dart';
 import 'package:voltride/core/theme.dart';
 import 'package:voltride/pages/splash_page.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+
+  // Enable verbose BLE logging in debug mode for troubleshooting
+  if (kDebugMode) {
+    FlutterBluePlus.setLogLevel(LogLevel.verbose, color: true);
+  }
 
   // Catch and display all Flutter Errors clearly on the screen (even in release/web)
   FlutterError.onError = (FlutterErrorDetails details) {

@@ -52,22 +52,53 @@ class _SplashPageState extends ConsumerState<SplashPage>
     await Future.delayed(const Duration(milliseconds: 1500));
     
     setState(() {
-      _statusText = 'Checking Location & BLE permissions...';
+      _statusText = 'Requesting Location Permission...';
     });
-    await Future.delayed(const Duration(milliseconds: 800));
+    await Future.delayed(const Duration(milliseconds: 500));
 
-    setState(() {
-      _statusText = 'Configuring Telemetry Service...';
-    });
-
-    await Future.delayed(const Duration(milliseconds: 800));
-
-    // Warm up/start services
+    // Start GPS with proper permission handling
     try {
       final gpsService = ref.read(gpsServiceProvider);
-      await gpsService.startTracking();
+      final gpsResult = await gpsService.checkAndRequestPermission();
+      
+      switch (gpsResult) {
+        case GpsPermissionResult.granted:
+          setState(() {
+            _statusText = 'GPS Active — Starting Telemetry...';
+          });
+          await gpsService.startTracking();
+          break;
+        case GpsPermissionResult.serviceDisabled:
+          setState(() {
+            _statusText = 'GPS disabled — Enable Location in Settings';
+          });
+          await Future.delayed(const Duration(milliseconds: 1000));
+          break;
+        case GpsPermissionResult.permissionDenied:
+          setState(() {
+            _statusText = 'Location permission denied — GPS unavailable';
+          });
+          await Future.delayed(const Duration(milliseconds: 1000));
+          break;
+        case GpsPermissionResult.permissionDeniedForever:
+          setState(() {
+            _statusText = 'Location blocked — Grant in App Settings';
+          });
+          await Future.delayed(const Duration(milliseconds: 1000));
+          break;
+        case GpsPermissionResult.unsupported:
+          setState(() {
+            _statusText = 'GPS not supported on this platform';
+          });
+          await Future.delayed(const Duration(milliseconds: 500));
+          break;
+      }
     } catch (e) {
       debugPrint('Error starting GPS during splash: $e');
+      setState(() {
+        _statusText = 'GPS initialization error';
+      });
+      await Future.delayed(const Duration(milliseconds: 500));
     }
 
     setState(() {

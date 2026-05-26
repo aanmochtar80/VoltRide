@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter_blue_plus/flutter_blue_plus.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -16,47 +17,85 @@ class BleScannerPage extends ConsumerStatefulWidget {
 
 class _BleScannerPageState extends ConsumerState<BleScannerPage> {
   StreamSubscription<List<ScanResult>>? _scanSubscription;
+  StreamSubscription<BluetoothAdapterState>? _adapterStateSubscription;
   List<ScanResult> _scanResults = [];
   bool _isScanning = false;
+  BluetoothAdapterState _adapterState = BluetoothAdapterState.unknown;
+  String? _scanError;
 
   @override
   void initState() {
     super.initState();
-    _startScan();
+    _listenAdapterState();
+    // Delay scan slightly to let the page build first
+    Future.delayed(const Duration(milliseconds: 500), () {
+      if (mounted) _startScan();
+    });
   }
 
   @override
   void dispose() {
     _scanSubscription?.cancel();
-    ref.read(bleServiceProvider).stopScan();
+    _adapterStateSubscription?.cancel();
+    if (!kIsWeb) {
+      FlutterBluePlus.stopScan();
+    }
     super.dispose();
+  }
+
+  /// Listen to Bluetooth adapter on/off state
+  void _listenAdapterState() {
+    if (kIsWeb) return;
+    _adapterStateSubscription = FlutterBluePlus.adapterState.listen((state) {
+      if (mounted) {
+        setState(() {
+          _adapterState = state;
+        });
+        // If Bluetooth was just turned on and we're not scanning, auto-scan
+        if (state == BluetoothAdapterState.on && !_isScanning && _scanResults.isEmpty) {
+          _startScan();
+        }
+      }
+    });
   }
 
   void _startScan() {
     if (_isScanning) return;
+    if (kIsWeb) return;
+
     setState(() {
       _isScanning = true;
       _scanResults.clear();
+      _scanError = null;
     });
 
     final bleService = ref.read(bleServiceProvider);
     
     // Subscribe to scan stream
     _scanSubscription?.cancel();
-    _scanSubscription = bleService.scanStream(timeout: const Duration(seconds: 10)).listen(
+    _scanSubscription = bleService.scanStream(timeout: const Duration(seconds: 12)).listen(
       (results) {
         if (mounted) {
           setState(() {
-            // Sort by signal strength (RSSI)
+            // Sort: JK-BMS devices first, then by signal strength (RSSI)
             _scanResults = List<ScanResult>.from(results)
-              ..sort((a, b) => b.rssi.compareTo(a.rssi));
+              ..sort((a, b) {
+                final aIsJk = _isJkBmsDevice(a);
+                final bIsJk = _isJkBmsDevice(b);
+                if (aIsJk && !bIsJk) return -1;
+                if (!aIsJk && bIsJk) return 1;
+                return b.rssi.compareTo(a.rssi);
+              });
           });
         }
       },
       onError: (e) {
         debugPrint('Scan stream error: $e');
         if (mounted) {
-          setState(() => _isScanning = false);
+          setState(() {
+            _isScanning = false;
+            _scanError = e.toString();
+          });
         }
       },
       onDone: () {
@@ -73,6 +112,42 @@ class _BleScannerPageState extends ConsumerState<BleScannerPage> {
     setState(() {
       _isScanning = false;
     });
+  }
+
+  /// Check if a scan result is likely a JK-BMS device
+  bool _isJkBmsDevice(ScanResult result) {
+    final name = _getDeviceName(result);
+    final nameLower = name.toLowerCase();
+    return nameLower.contains('jk') ||
+        nameLower.contains('bms') ||
+        nameLower.contains('jikong') ||
+        nameLower.contains('jk-b') ||
+        nameLower.contains('jk_b');
+  }
+
+  /// Get the best available device name
+  String _getDeviceName(ScanResult result) {
+    final advName = result.advertisementData.advName;
+    if (advName.isNotEmpty) return advName;
+    final platformName = result.device.platformName;
+    if (platformName.isNotEmpty) return platformName;
+    return 'Unknown Device';
+  }
+
+  void _turnOnBluetooth() async {
+    try {
+      await FlutterBluePlus.turnOn();
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Please turn on Bluetooth from Settings: $e'),
+            backgroundColor: VoltRideTheme.alertRed,
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+    }
   }
 
   @override
@@ -107,6 +182,10 @@ class _BleScannerPageState extends ConsumerState<BleScannerPage> {
         ),
         child: Column(
           children: [
+            // ── Bluetooth Adapter State Warning ──
+            if (!kIsWeb && _adapterState != BluetoothAdapterState.on && _adapterState != BluetoothAdapterState.unknown)
+              _buildAdapterWarning(),
+
             // ── Connection Status Bar ──
             Container(
               padding: const EdgeInsets.all(16),
@@ -232,22 +311,69 @@ class _BleScannerPageState extends ConsumerState<BleScannerPage> {
 
             const SizedBox(height: 20),
 
-            const Padding(
-              padding: EdgeInsets.symmetric(horizontal: 20),
-              child: Align(
-                alignment: Alignment.centerLeft,
-                child: Text(
-                  'BLUETOOTH BLE DEVICES',
-                  style: TextStyle(
-                    color: VoltRideTheme.textPrimary,
-                    fontSize: 11,
-                    fontWeight: FontWeight.bold,
-                    letterSpacing: 1.5,
+            // ── Section Header ──
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 20),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  const Text(
+                    'BLUETOOTH BLE DEVICES',
+                    style: TextStyle(
+                      color: VoltRideTheme.textPrimary,
+                      fontSize: 11,
+                      fontWeight: FontWeight.bold,
+                      letterSpacing: 1.5,
+                    ),
                   ),
-                ),
+                  if (_scanResults.isNotEmpty)
+                    Text(
+                      '${_scanResults.length} found',
+                      style: const TextStyle(
+                        color: VoltRideTheme.textMuted,
+                        fontSize: 11,
+                      ),
+                    ),
+                ],
               ),
             ),
             const SizedBox(height: 10),
+
+            // ── Scan Error ──
+            if (_scanError != null)
+              Container(
+                padding: const EdgeInsets.all(12),
+                margin: const EdgeInsets.symmetric(horizontal: 16),
+                decoration: BoxDecoration(
+                  color: VoltRideTheme.alertRed.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: VoltRideTheme.alertRed.withOpacity(0.3)),
+                ),
+                child: Row(
+                  children: [
+                    const Icon(Icons.error_outline, color: VoltRideTheme.alertRed, size: 20),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text(
+                            'Scan Error',
+                            style: TextStyle(color: VoltRideTheme.alertRed, fontSize: 12, fontWeight: FontWeight.bold),
+                          ),
+                          const SizedBox(height: 2),
+                          Text(
+                            _scanError!,
+                            style: const TextStyle(color: VoltRideTheme.textMuted, fontSize: 10),
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
 
             // ── Scan results list ──
             Expanded(
@@ -263,14 +389,26 @@ class _BleScannerPageState extends ConsumerState<BleScannerPage> {
                           ),
                           const SizedBox(height: 16),
                           Text(
-                            _isScanning ? 'Scanning for BMS...' : 'No BLE devices found',
+                            _isScanning 
+                                ? 'Scanning for BMS devices...' 
+                                : _adapterState != BluetoothAdapterState.on && !kIsWeb
+                                    ? 'Turn on Bluetooth to scan'
+                                    : 'No BLE devices found',
                             style: const TextStyle(color: VoltRideTheme.textMuted, fontSize: 13),
                           ),
+                          if (_isScanning) ...[
+                            const SizedBox(height: 8),
+                            const Text(
+                              'Make sure your JK-BMS is powered on',
+                              style: TextStyle(color: VoltRideTheme.textMuted, fontSize: 11),
+                            ),
+                          ],
                           if (!_isScanning) ...[
                             const SizedBox(height: 12),
-                            OutlinedButton(
+                            OutlinedButton.icon(
+                              icon: const Icon(Icons.refresh, size: 16),
+                              label: const Text('SCAN AGAIN'),
                               onPressed: _startScan,
-                              child: const Text('SCAN AGAIN'),
                             ),
                           ],
                         ],
@@ -282,12 +420,8 @@ class _BleScannerPageState extends ConsumerState<BleScannerPage> {
                       itemBuilder: (context, index) {
                         final result = _scanResults[index];
                         final device = result.device;
-                        final name = result.advertisementData.localName.isNotEmpty
-                            ? result.advertisementData.localName
-                            : (device.platformName.isNotEmpty ? device.platformName : 'Unknown Device');
-
-                        final isJkBms = name.toLowerCase().contains('jk') ||
-                            name.toLowerCase().contains('bms');
+                        final name = _getDeviceName(result);
+                        final isJkBms = _isJkBmsDevice(result);
 
                         return Container(
                           margin: const EdgeInsets.only(bottom: 12),
@@ -307,13 +441,36 @@ class _BleScannerPageState extends ConsumerState<BleScannerPage> {
                                 size: 20,
                               ),
                             ),
-                            title: Text(
-                              name,
-                              style: TextStyle(
-                                color: isJkBms ? VoltRideTheme.textPrimary : VoltRideTheme.textSecondary,
-                                fontWeight: FontWeight.bold,
-                                fontSize: 14,
-                              ),
+                            title: Row(
+                              children: [
+                                Expanded(
+                                  child: Text(
+                                    name,
+                                    style: TextStyle(
+                                      color: isJkBms ? VoltRideTheme.textPrimary : VoltRideTheme.textSecondary,
+                                      fontWeight: FontWeight.bold,
+                                      fontSize: 14,
+                                    ),
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                ),
+                                if (isJkBms)
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                    decoration: BoxDecoration(
+                                      color: VoltRideTheme.electricBlue.withOpacity(0.2),
+                                      borderRadius: BorderRadius.circular(4),
+                                    ),
+                                    child: const Text(
+                                      'BMS',
+                                      style: TextStyle(
+                                        color: VoltRideTheme.electricBlue,
+                                        fontSize: 8,
+                                        fontWeight: FontWeight.bold,
+                                      ),
+                                    ),
+                                  ),
+                              ],
                             ),
                             subtitle: Text(
                               device.remoteId.str,
@@ -383,6 +540,77 @@ class _BleScannerPageState extends ConsumerState<BleScannerPage> {
             ),
           ],
         ),
+      ),
+    );
+  }
+
+  /// Build warning banner when Bluetooth adapter is off
+  Widget _buildAdapterWarning() {
+    String message;
+    IconData icon;
+    Color color;
+
+    switch (_adapterState) {
+      case BluetoothAdapterState.off:
+        message = 'Bluetooth is turned off';
+        icon = Icons.bluetooth_disabled;
+        color = VoltRideTheme.voltYellow;
+        break;
+      case BluetoothAdapterState.unauthorized:
+        message = 'Bluetooth permission denied. Check app settings.';
+        icon = Icons.lock_outline;
+        color = VoltRideTheme.alertRed;
+        break;
+      case BluetoothAdapterState.unavailable:
+        message = 'Bluetooth is not available on this device';
+        icon = Icons.bluetooth_disabled;
+        color = VoltRideTheme.alertRed;
+        break;
+      default:
+        message = 'Bluetooth adapter: ${_adapterState.name}';
+        icon = Icons.bluetooth_disabled;
+        color = VoltRideTheme.voltYellow;
+    }
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      margin: const EdgeInsets.fromLTRB(16, 16, 16, 0),
+      decoration: BoxDecoration(
+        color: color.withOpacity(0.1),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: color.withOpacity(0.3)),
+      ),
+      child: Row(
+        children: [
+          Icon(icon, color: color, size: 24),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  message,
+                  style: TextStyle(color: color, fontSize: 13, fontWeight: FontWeight.w600),
+                ),
+                if (_adapterState == BluetoothAdapterState.off)
+                  const Text(
+                    'Tap the button to enable Bluetooth',
+                    style: TextStyle(color: VoltRideTheme.textMuted, fontSize: 10),
+                  ),
+              ],
+            ),
+          ),
+          if (_adapterState == BluetoothAdapterState.off)
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: color,
+                foregroundColor: Colors.black,
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+              ),
+              onPressed: _turnOnBluetooth,
+              child: const Text('TURN ON', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold)),
+            ),
+        ],
       ),
     );
   }

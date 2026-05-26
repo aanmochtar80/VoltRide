@@ -16,6 +16,7 @@ class BleService {
   BluetoothCharacteristic? _notifyCharacteristic;
   StreamSubscription<List<int>>? _notifySubscription;
   StreamSubscription<BluetoothConnectionState>? _connectionSubscription;
+  StreamSubscription<bool>? _isScanningSubscription;
   
   final _connectionStateController = StreamController<BleConnectionState>.broadcast();
   final _dataController = StreamController<List<int>>.broadcast();
@@ -31,50 +32,133 @@ class BleService {
   BluetoothDevice? get connectedDevice => _connectedDevice;
   bool get isConnected => _state == BleConnectionState.connected;
 
+  /// Stream of Bluetooth adapter state (on/off/unauthorized etc.)
+  Stream<BluetoothAdapterState> get adapterStateStream => FlutterBluePlus.adapterState;
+
+  BleService() {
+    // Listen to FlutterBluePlus isScanning to properly reset state
+    _isScanningSubscription = FlutterBluePlus.isScanning.listen((scanning) {
+      if (!scanning && _state == BleConnectionState.scanning) {
+        _updateState(BleConnectionState.disconnected);
+      }
+    });
+  }
+
   void _updateState(BleConnectionState newState) {
     _state = newState;
     _connectionStateController.add(newState);
   }
 
-  Future<List<ScanResult>> scanDevices({Duration timeout = const Duration(seconds: 5)}) async {
-    _updateState(BleConnectionState.scanning);
-    
-    final results = <ScanResult>[];
-    
-    if (kIsWeb) {
-      // Bypass on Web
-      await Future.delayed(const Duration(seconds: 1));
-      _updateState(BleConnectionState.disconnected);
-      return results;
-    }
-    
+  /// Check if Bluetooth adapter is on and permissions are granted.
+  /// Returns true if ready to scan, false otherwise.
+  Future<bool> ensureBluetoothReady() async {
+    if (kIsWeb) return false;
+
     try {
-      await FlutterBluePlus.startScan(timeout: timeout);
-      
-      await for (final scanResults in FlutterBluePlus.scanResults) {
-        results.clear();
-        results.addAll(scanResults);
+      // Check if Bluetooth is supported
+      if (await FlutterBluePlus.isSupported == false) {
+        debugPrint('BLE: Bluetooth is not supported on this device');
+        return false;
       }
+
+      // Check adapter state
+      final adapterState = await FlutterBluePlus.adapterState.first;
+      if (adapterState != BluetoothAdapterState.on) {
+        debugPrint('BLE: Adapter state is $adapterState, attempting to turn on...');
+        try {
+          // On Android, this shows a system dialog asking user to turn on Bluetooth
+          await FlutterBluePlus.turnOn();
+        } catch (e) {
+          debugPrint('BLE: Could not turn on Bluetooth: $e');
+        }
+
+        // Wait briefly for adapter to turn on
+        try {
+          final state = await FlutterBluePlus.adapterState
+              .where((s) => s == BluetoothAdapterState.on)
+              .first
+              .timeout(const Duration(seconds: 5));
+          if (state != BluetoothAdapterState.on) return false;
+        } catch (e) {
+          debugPrint('BLE: Bluetooth adapter did not turn on in time');
+          return false;
+        }
+      }
+
+      return true;
     } catch (e) {
-      debugPrint('BLE Scan error: $e');
+      debugPrint('BLE: ensureBluetoothReady error: $e');
+      return false;
     }
-    
-    if (_state == BleConnectionState.scanning) {
-      _updateState(BleConnectionState.disconnected);
-    }
-    
-    return results;
   }
 
+  /// Scan for BLE devices. Returns a stream of scan results.
+  /// This properly handles permissions and adapter state.
   Stream<List<ScanResult>> scanStream({Duration timeout = const Duration(seconds: 10)}) {
-    _updateState(BleConnectionState.scanning);
-    
     if (kIsWeb) {
       return Stream.periodic(const Duration(seconds: 1), (_) => <ScanResult>[]).take(1);
     }
+
+    // Create a controller to manage the stream lifecycle
+    final controller = StreamController<List<ScanResult>>();
     
-    FlutterBluePlus.startScan(timeout: timeout);
-    return FlutterBluePlus.scanResults;
+    () async {
+      try {
+        // Ensure Bluetooth is ready (adapter on, permissions granted)
+        final ready = await ensureBluetoothReady();
+        if (!ready) {
+          debugPrint('BLE: Bluetooth not ready, cannot scan');
+          controller.add([]);
+          await controller.close();
+          return;
+        }
+
+        _updateState(BleConnectionState.scanning);
+
+        // Stop any existing scan first
+        if (FlutterBluePlus.isScanningNow) {
+          await FlutterBluePlus.stopScan();
+        }
+
+        // Start scanning with proper parameters
+        await FlutterBluePlus.startScan(
+          timeout: timeout,
+          androidUsesFineLocation: true, // Required for Android 12+ BLE scanning
+        );
+
+        // Forward scan results to the controller
+        final subscription = FlutterBluePlus.onScanResults.listen(
+          (results) {
+            if (!controller.isClosed) {
+              controller.add(results);
+            }
+          },
+          onError: (e) {
+            debugPrint('BLE Scan stream error: $e');
+            if (!controller.isClosed) {
+              controller.addError(e);
+            }
+          },
+        );
+
+        // Wait for scan to complete
+        await FlutterBluePlus.isScanning.where((s) => s == false).first;
+
+        // Clean up
+        await subscription.cancel();
+        if (!controller.isClosed) {
+          await controller.close();
+        }
+      } catch (e) {
+        debugPrint('BLE Scan error: $e');
+        if (!controller.isClosed) {
+          controller.addError(e);
+          await controller.close();
+        }
+      }
+    }();
+
+    return controller.stream;
   }
 
   void stopScan() {
@@ -136,6 +220,8 @@ class BleService {
       }
 
       // Service/characteristic not found, but still connected
+      debugPrint('BLE: Connected but JK-BMS service/characteristic not found');
+      debugPrint('BLE: Available services: ${services.map((s) => s.uuid).toList()}');
       _updateState(BleConnectionState.connected);
       return true;
     } catch (e) {
@@ -210,6 +296,7 @@ class BleService {
     _reconnectTimer?.cancel();
     _notifySubscription?.cancel();
     _connectionSubscription?.cancel();
+    _isScanningSubscription?.cancel();
     _connectionStateController.close();
     _dataController.close();
   }
