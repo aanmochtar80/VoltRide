@@ -34,7 +34,7 @@ jobs:
           
           rm -rf android
           echo "Running flutter create..."
-          flutter create . --platforms android > create_log.txt 2>&1 || true
+          flutter create --org com.voltride . --platforms android > create_log.txt 2>&1 || true
           cat create_log.txt
           
           if [ -f "/tmp/backup/AndroidManifest.xml" ]; then
