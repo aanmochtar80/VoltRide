@@ -275,19 +275,19 @@ class JkBmsService {
     }
   }
 
-  /// Build JK-BMS read command
   static List<int> buildReadCommand() {
-    // JK-BMS read all data command
+    // JK-BMS read all data command (exact 21 bytes protocol)
     return [
       0x4E, 0x57, // Header
-      0x00, 0x13, // Length
-      0x00, 0x00, 0x00, 0x00, // Terminal number
-      0x06, // Command: read all
-      0x03, // Frame source: BMS
-      0x00, // Transport type
+      0x00, 0x13, // Length (19 bytes)
+      0x00, 0x00, 0x00, 0x00, // BMS Terminal number
+      0x06, // Command: Read all data
+      0x03, // Frame source: PC/Host
+      0x00, // TX Type
       0x00, 0x00, 0x00, 0x00, // Record number
-      0x00, 0x00, 0x00, 0x00, // End marker
-      0x68, // Checksum
+      0x00, 0x00, 0x00, 0x00, // Reserved
+      0x68, // End Flag
+      0x00, 0x00, 0x01, 0x29, // Calculated Checksum
     ];
   }
 
