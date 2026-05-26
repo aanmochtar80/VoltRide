@@ -192,14 +192,27 @@ class BleService {
         }
       });
 
+      // Request MTU 512 for large BMS data frames (JK BMS sends ~300 bytes)
+      try {
+        await device.requestMtu(512);
+        debugPrint('BLE: Requested MTU 512');
+        // Wait a tiny bit for MTU to negotiate
+        await Future.delayed(const Duration(milliseconds: 200));
+      } catch (e) {
+        debugPrint('BLE: Failed to request MTU: $e');
+      }
+
       // Discover services and automatically find TX/RX characteristics
       final services = await device.discoverServices();
       bool foundAnyNotify = false;
       
       for (final service in services) {
         for (final char in service.characteristics) {
-          // If we can listen to it, subscribe to it!
-          if (char.properties.notify || char.properties.indicate) {
+          final uuid = char.uuid.toString().toLowerCase();
+          
+          // Try to listen to it if it supports notify/indicate OR if it's the known JK-BMS characteristic (ffe1/ffe2/ffe3)
+          // Some cheap BLE modules don't advertise their properties correctly.
+          if (char.properties.notify || char.properties.indicate || uuid.contains('ffe1') || uuid.contains('ffe2') || uuid.contains('ffe3')) {
             try {
               await char.setNotifyValue(true);
               _notifySubscription?.cancel(); // keep only the latest or you could list them
@@ -207,17 +220,17 @@ class BleService {
                 _dataController.add(data);
               });
               foundAnyNotify = true;
-              debugPrint('BLE: Subscribed to Notify characteristic: ${char.uuid}');
+              debugPrint('BLE: Subscribed to Notify characteristic: $uuid');
             } catch (e) {
-              debugPrint('BLE: Failed to subscribe to ${char.uuid}: $e');
+              debugPrint('BLE: Failed to subscribe to $uuid: $e');
             }
           }
           
           // If we can write to it without response (standard for fast BMS polling)
           // or with response, save it as our write characteristic
-          if (char.properties.writeWithoutResponse || char.properties.write) {
+          if (char.properties.writeWithoutResponse || char.properties.write || uuid.contains('ffe1') || uuid.contains('ffe2') || uuid.contains('ffe3')) {
             _notifyCharacteristic = char; // we'll use this for writing
-            debugPrint('BLE: Found Write characteristic: ${char.uuid}');
+            debugPrint('BLE: Found Write characteristic: $uuid');
           }
         }
       }
@@ -286,7 +299,8 @@ class BleService {
   Future<void> writeData(List<int> data) async {
     if (_notifyCharacteristic == null) return;
     try {
-      await _notifyCharacteristic!.write(data, withoutResponse: true);
+      final withoutResp = _notifyCharacteristic!.properties.writeWithoutResponse;
+      await _notifyCharacteristic!.write(data, withoutResponse: withoutResp);
     } catch (e) {
       debugPrint('BLE Write error: $e');
     }
