@@ -15,6 +15,7 @@ class LiveMapsPage extends ConsumerStatefulWidget {
 class _LiveMapsPageState extends ConsumerState<LiveMapsPage> {
   final MapController _mapController = MapController();
   bool _autoCenter = true;
+  bool _isSatellite = false;
 
   @override
   Widget build(BuildContext context) {
@@ -41,6 +42,18 @@ class _LiveMapsPageState extends ConsumerState<LiveMapsPage> {
       appBar: AppBar(
         title: const Text('LIVE MAPS'),
         actions: [
+          IconButton(
+            icon: Icon(
+              _isSatellite ? Icons.map : Icons.satellite,
+              color: VoltRideTheme.neonGreen,
+            ),
+            tooltip: _isSatellite ? 'Switch to Normal Map' : 'Switch to Satellite Map',
+            onPressed: () {
+              setState(() {
+                _isSatellite = !_isSatellite;
+              });
+            },
+          ),
           IconButton(
             icon: Icon(
               _autoCenter ? Icons.gps_fixed : Icons.gps_not_fixed,
@@ -75,7 +88,9 @@ class _LiveMapsPageState extends ConsumerState<LiveMapsPage> {
             ),
             children: [
               TileLayer(
-                urlTemplate: 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',
+                urlTemplate: _isSatellite 
+                    ? 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}'
+                    : 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',
                 subdomains: const ['a', 'b', 'c', 'd'],
                 userAgentPackageName: 'com.voltride.app',
               ),
