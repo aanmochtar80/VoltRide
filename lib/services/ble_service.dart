@@ -226,10 +226,16 @@ class BleService {
             }
           }
           
-          // Collect ALL writable characteristics
-          if (char.properties.writeWithoutResponse || char.properties.write || uuid.contains('ffe1') || uuid.contains('ffe2') || uuid.contains('ffe3') || uuid.contains('ff10')) {
-            _writeCharacteristics.add(char);
-            debugPrint('BLE: Added Write characteristic: $uuid');
+          // Collect ALL writable characteristics, BUT ONLY from known BMS data services/characteristics
+          // We MUST NOT write to Generic Access (0x1800) or Device Name (0x2A00) as it will rename the device!
+          if (char.properties.writeWithoutResponse || char.properties.write) {
+            if (uuid.contains('ffe1') || uuid.contains('ffe2') || uuid.contains('ffe3') || 
+                uuid.contains('ff10') || uuid.contains('ff11') || uuid.contains('ff12') ||
+                service.uuid.toString().toLowerCase().contains('ffe0') || 
+                service.uuid.toString().toLowerCase().contains('ff10')) {
+              _writeCharacteristics.add(char);
+              debugPrint('BLE: Added Write characteristic: $uuid');
+            }
           }
         }
       }
