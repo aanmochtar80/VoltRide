@@ -47,7 +47,7 @@ class JkBmsService {
       if (!_bleService.isConnected) return;
       
       // Cycle through different known JK BMS polling commands
-      switch (_pollStep % 5) {
+      switch (_pollStep % 6) {
         case 0:
           _bleService.writeData(JkBmsService.buildReadCommand()); // Modern 4E 57
           break;
@@ -62,6 +62,10 @@ class JkBmsService {
           break;
         case 4:
           _bleService.writeData(JkBmsService.buildLegacyReadCommand(0x98)); // Other Alt Data
+          break;
+        case 5:
+          // L1V1 probe for 0x95 (some models require length=1, value=1 instead of len=0)
+          _bleService.writeData(JkBmsService.buildLegacyL1V1Command(0x95));
           break;
       }
       _pollStep++;
@@ -439,6 +443,22 @@ class JkBmsService {
     List<int> frame = [
       0xAA, 0x55, 0x90, 0xEB, command, 0x00,
       0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+      0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+      0x00, 0x00 // index 19 will be checksum
+    ];
+    
+    int crc = 0;
+    for (int i = 0; i < 19; i++) {
+      crc = (crc + frame[i]) & 0xFF;
+    }
+    frame[19] = crc;
+    return frame;
+  }
+
+  static List<int> buildLegacyL1V1Command(int command) {
+    List<int> frame = [
+      0xAA, 0x55, 0x90, 0xEB, command, 0x01,
+      0x01, 0x00, 0x00, 0x00, 0x00, 0x00,
       0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
       0x00, 0x00 // index 19 will be checksum
     ];
