@@ -44,7 +44,15 @@ class JkBmsService {
     _pollingTimer?.cancel();
     _pollingTimer = Timer.periodic(const Duration(milliseconds: 1500), (_) {
       if (_bleService.isConnected) {
+        // Send modern JK BMS protocol read command
         _bleService.writeData(JkBmsService.buildReadCommand());
+        
+        // Send legacy JK BMS protocol read command (for older versions like some Mx1200 variants)
+        Future.delayed(const Duration(milliseconds: 200), () {
+          if (_bleService.isConnected) {
+            _bleService.writeData(JkBmsService.buildLegacyReadCommand());
+          }
+        });
       }
     });
   }
@@ -288,6 +296,17 @@ class JkBmsService {
       0x00, 0x00, 0x00, 0x00, // Reserved
       0x68, // End Flag
       0x00, 0x00, 0x01, 0x29, // Calculated Checksum
+    ];
+  }
+
+  /// Build legacy JK-BMS read command (AA 55 90 EB)
+  static List<int> buildLegacyReadCommand() {
+    // 0x96 = cell info, checksum = 0x10
+    return [
+      0xAA, 0x55, 0x90, 0xEB, 0x96, 0x00,
+      0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+      0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+      0x00, 0x10
     ];
   }
 
