@@ -120,45 +120,6 @@ class BatteryCardWidget extends StatelessWidget {
               ),
             ],
           ),
-          const SizedBox(height: 16),
-          // Raw HEX Debug Box
-          Consumer(
-            builder: (context, ref, child) {
-              final rawHex = ref.watch(rawBmsHexStreamProvider).value ?? "Waiting for raw data...";
-              return Container(
-                width: double.infinity,
-                padding: const EdgeInsets.all(8),
-                decoration: BoxDecoration(
-                  color: Colors.black.withOpacity(0.3),
-                  borderRadius: BorderRadius.circular(8),
-                  border: Border.all(color: VoltRideTheme.electricBlue.withOpacity(0.3)),
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const Text(
-                      'RAW BLUETOOTH DATA (DEBUG)',
-                      style: TextStyle(
-                        color: VoltRideTheme.electricBlue,
-                        fontSize: 9,
-                        fontWeight: FontWeight.bold,
-                        letterSpacing: 1.2,
-                      ),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      rawHex.length > 80 ? '${rawHex.substring(0, 80)}...' : rawHex,
-                      style: const TextStyle(
-                        color: VoltRideTheme.textSecondary,
-                        fontSize: 10,
-                        fontFamily: 'monospace',
-                      ),
-                    ),
-                  ],
-                ),
-              );
-            },
-          ),
         ],
       ),
     );
