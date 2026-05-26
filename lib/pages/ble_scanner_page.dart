@@ -163,27 +163,11 @@ class _BleScannerPageState extends ConsumerState<BleScannerPage> {
       appBar: AppBar(
         title: const Text('BMS SCANNER'),
         actions: [
-          Row(
-            children: [
-              const Text('BLE', style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold)),
-              Switch(
-                value: _adapterState == BluetoothAdapterState.on,
-                activeColor: VoltRideTheme.neonGreen,
-                onChanged: (val) {
-                  if (val) {
-                    _turnOnBluetooth();
-                  } else {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(
-                        content: Text('Android prevents apps from turning off Bluetooth. Please turn it off in system settings.'),
-                        backgroundColor: VoltRideTheme.alertRed,
-                      ),
-                    );
-                  }
-                },
-              ),
-            ],
-          ),
+          if (_adapterState != BluetoothAdapterState.on && !kIsWeb)
+            TextButton(
+              onPressed: _turnOnBluetooth,
+              child: const Text('TURN ON', style: TextStyle(color: VoltRideTheme.neonGreen, fontWeight: FontWeight.bold, fontSize: 12)),
+            ),
           if (_isScanning)
             IconButton(
               icon: const SizedBox(
