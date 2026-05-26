@@ -11,6 +11,7 @@ import 'package:voltride/services/ble_service.dart';
 class JkBmsService {
   final BleService _bleService;
   final _dataController = StreamController<BmsData>.broadcast();
+  final _rawHexController = StreamController<String>.broadcast();
   StreamSubscription<List<int>>? _dataSubscription;
   Timer? _dummyTimer;
   Timer? _pollingTimer;
@@ -20,6 +21,7 @@ class JkBmsService {
   final List<int> _buffer = [];
 
   Stream<BmsData> get bmsDataStream => _dataController.stream;
+  Stream<String> get rawHexStream => _rawHexController.stream;
   BmsData get lastData => _lastData;
   bool get isUsingDummyData => _useDummyData;
 
@@ -30,6 +32,8 @@ class JkBmsService {
     _dataSubscription?.cancel();
     _dataSubscription = _bleService.dataStream.listen((data) {
       if (data.isNotEmpty) {
+        String hex = data.map((b) => b.toRadixString(16).padLeft(2, '0').toUpperCase()).join(' ');
+        _rawHexController.add(hex);
         debugPrint('BMS Raw Data: ${data.length} bytes (First byte: ${data[0]})');
       }
       _buffer.addAll(data);

@@ -75,6 +75,11 @@ final bmsDataStreamProvider = StreamProvider<BmsData>((ref) {
   return bmsService.bmsDataStream;
 });
 
+final rawBmsHexStreamProvider = StreamProvider<String>((ref) {
+  final bmsService = ref.watch(jkBmsServiceProvider);
+  return bmsService.rawHexStream;
+});
+
 final currentBmsDataProvider = Provider<BmsData>((ref) {
   final bmsAsync = ref.watch(bmsDataStreamProvider);
   return bmsAsync.maybeWhen(
