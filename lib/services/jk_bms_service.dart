@@ -13,6 +13,7 @@ class JkBmsService {
   final _dataController = StreamController<BmsData>.broadcast();
   StreamSubscription<List<int>>? _dataSubscription;
   Timer? _dummyTimer;
+  Timer? _pollingTimer;
   
   BmsData _lastData = BmsData.empty();
   bool _useDummyData = false;
@@ -28,8 +29,19 @@ class JkBmsService {
   void startListening() {
     _dataSubscription?.cancel();
     _dataSubscription = _bleService.dataStream.listen((data) {
+      if (data.isNotEmpty) {
+        debugPrint('BMS Raw Data: ${data.length} bytes (First byte: ${data[0]})');
+      }
       _buffer.addAll(data);
       _tryParseFrame();
+    });
+
+    // Start polling the BMS every 1.5 seconds
+    _pollingTimer?.cancel();
+    _pollingTimer = Timer.periodic(const Duration(milliseconds: 1500), (_) {
+      if (_bleService.isConnected) {
+        _bleService.writeData(JkBmsService.buildReadCommand());
+      }
     });
   }
 
@@ -278,6 +290,8 @@ class JkBmsService {
   void stopListening() {
     _dataSubscription?.cancel();
     _dataSubscription = null;
+    _pollingTimer?.cancel();
+    _pollingTimer = null;
   }
 
   void dispose() {
