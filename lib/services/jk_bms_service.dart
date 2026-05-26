@@ -47,20 +47,21 @@ class JkBmsService {
       if (!_bleService.isConnected) return;
       
       // Cycle through different known JK BMS polling commands
-      switch (_pollStep % 4) {
+      switch (_pollStep % 5) {
         case 0:
-          _bleService.writeData(JkBmsService.buildReadCommand());
+          _bleService.writeData(JkBmsService.buildReadCommand()); // Modern 4E 57
           break;
         case 1:
-          _bleService.writeData(JkBmsService.buildLegacyReadCommand());
+          _bleService.writeData(JkBmsService.buildLegacyReadCommand(0x97)); // Init/Device Info
           break;
         case 2:
-          // RS485 Short Probe A0 (55 AA 00 FF 00 00 FE)
-          _bleService.writeData([0x55, 0xAA, 0x00, 0xFF, 0x00, 0x00, 0xFE]);
+          _bleService.writeData(JkBmsService.buildLegacyReadCommand(0x96)); // Cell Info
           break;
         case 3:
-          // RS485 Short Probe A16 (55 AA 10 FF 00 00 0E)
-          _bleService.writeData([0x55, 0xAA, 0x10, 0xFF, 0x00, 0x00, 0x0E]);
+          _bleService.writeData(JkBmsService.buildLegacyReadCommand(0x95)); // Old All Data
+          break;
+        case 4:
+          _bleService.writeData(JkBmsService.buildLegacyReadCommand(0x98)); // Other Alt Data
           break;
       }
       _pollStep++;
@@ -434,14 +435,20 @@ class JkBmsService {
   }
 
   /// Build legacy JK-BMS read command (AA 55 90 EB)
-  static List<int> buildLegacyReadCommand() {
-    // 0x96 = cell info, checksum = 0x10
-    return [
-      0xAA, 0x55, 0x90, 0xEB, 0x96, 0x00,
+  static List<int> buildLegacyReadCommand(int command) {
+    List<int> frame = [
+      0xAA, 0x55, 0x90, 0xEB, command, 0x00,
       0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
       0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-      0x00, 0x10
+      0x00, 0x00 // index 19 will be checksum
     ];
+    
+    int crc = 0;
+    for (int i = 0; i < 19; i++) {
+      crc = (crc + frame[i]) & 0xFF;
+    }
+    frame[19] = crc;
+    return frame;
   }
 
   void stopListening() {
