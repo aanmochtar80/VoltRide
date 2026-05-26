@@ -218,8 +218,12 @@ class JkBmsService {
       }
 
       double voltage = get32(118) * 0.001;
-      if (voltage < 0.5 && cellVoltages.isNotEmpty) {
-        voltage = cellVoltages.reduce((a, b) => a + b);
+      if (cellVoltages.isNotEmpty) {
+        double cellSum = cellVoltages.reduce((a, b) => a + b);
+        // Validasi voltase total terhadap jumlah sel (bug di BMS lawas)
+        if (voltage < 0.5 || voltage > cellVoltages.length * 4.5 || (voltage - cellSum).abs() > 5.0) {
+          voltage = cellSum;
+        }
       }
 
       double current = 0;
@@ -250,18 +254,18 @@ class JkBmsService {
         if (mosRaw > 0x7FFF) mosRaw -= 0x10000;
         tempMos = mosRaw * 0.1;
 
-        int b1Raw = get16(162);
-        if (b1Raw > 0x7FFF) b1Raw -= 0x10000;
-        temp1 = b1Raw * 0.1;
+        int t1Raw = get16(162);
+        if (t1Raw > 0x7FFF) t1Raw -= 0x10000;
+        temp1 = t1Raw * 0.1;
 
-        int b2Raw = get16(164);
-        if (b2Raw > 0x7FFF) b2Raw -= 0x10000;
-        temp2 = b2Raw * 0.1;
+        int t2Raw = get16(164);
+        if (t2Raw > 0x7FFF) t2Raw -= 0x10000;
+        temp2 = t2Raw * 0.1;
 
         isCharging = frame[198] != 0;
         isDischarging = frame[199] != 0;
       } else {
-        int curRaw = get32(126);
+        int curRaw = get32(126); // Default layout uses 32-bit
         if (curRaw > 0x7FFFFFFF) curRaw -= 0x100000000;
         current = curRaw * 0.001;
 
