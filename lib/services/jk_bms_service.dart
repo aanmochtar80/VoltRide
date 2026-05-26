@@ -47,25 +47,30 @@ class JkBmsService {
       if (!_bleService.isConnected) return;
       
       // Cycle through different known JK BMS polling commands
-      switch (_pollStep % 6) {
+      switch (_pollStep % 8) {
         case 0:
-          _bleService.writeData(JkBmsService.buildReadCommand()); // Modern 4E 57
+          _bleService.writeData(JkBmsService.buildLegacyReadCommand(0x97)); // Init AA55
           break;
         case 1:
-          _bleService.writeData(JkBmsService.buildLegacyReadCommand(0x97)); // Init/Device Info
+          _bleService.writeData(JkBmsService.buildLegacyReadCommand(0x96)); // Cell Info AA55
           break;
         case 2:
-          _bleService.writeData(JkBmsService.buildLegacyReadCommand(0x96)); // Cell Info
+          _bleService.writeData(JkBmsService.buildLegacyReadCommand(0x95)); // Old All Data AA55
           break;
         case 3:
-          _bleService.writeData(JkBmsService.buildLegacyReadCommand(0x95)); // Old All Data
+          _bleService.writeData(JkBmsService.buildLegacyL1V1Command(0x95)); // L1V1 AA55
           break;
         case 4:
-          _bleService.writeData(JkBmsService.buildLegacyReadCommand(0x98)); // Other Alt Data
+          _bleService.writeData(JkBmsService.buildLegacyReverseReadCommand(0x97)); // Init 55AA
           break;
         case 5:
-          // L1V1 probe for 0x95 (some models require length=1, value=1 instead of len=0)
-          _bleService.writeData(JkBmsService.buildLegacyL1V1Command(0x95));
+          _bleService.writeData(JkBmsService.buildLegacyReverseReadCommand(0x96)); // Cell Info 55AA
+          break;
+        case 6:
+          _bleService.writeData(JkBmsService.buildLegacyReverseReadCommand(0x95)); // Old All Data 55AA
+          break;
+        case 7:
+          _bleService.writeData(JkBmsService.buildReadCommand()); // Modern 4E 57
           break;
       }
       _pollStep++;
@@ -442,6 +447,22 @@ class JkBmsService {
   static List<int> buildLegacyReadCommand(int command) {
     List<int> frame = [
       0xAA, 0x55, 0x90, 0xEB, command, 0x00,
+      0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+      0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+      0x00, 0x00 // index 19 will be checksum
+    ];
+    
+    int crc = 0;
+    for (int i = 0; i < 19; i++) {
+      crc = (crc + frame[i]) & 0xFF;
+    }
+    frame[19] = crc;
+    return frame;
+  }
+
+  static List<int> buildLegacyReverseReadCommand(int command) {
+    List<int> frame = [
+      0x55, 0xAA, 0xEB, 0x90, command, 0x00,
       0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
       0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
       0x00, 0x00 // index 19 will be checksum
