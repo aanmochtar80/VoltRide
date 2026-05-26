@@ -170,11 +170,7 @@ class BleService {
     }
   }
 
-  Future<bool> connectToDevice(
-    BluetoothDevice device, {
-    String serviceUuid = '0000ffe0-0000-1000-8000-00805f9b34fb',
-    String characteristicUuid = '0000ffe1-0000-1000-8000-00805f9b34fb',
-  }) async {
+  Future<bool> connectToDevice(BluetoothDevice device) async {
     if (kIsWeb) return false;
     
     try {
@@ -196,32 +192,40 @@ class BleService {
         }
       });
 
-      // Discover services
+      // Discover services and automatically find TX/RX characteristics
       final services = await device.discoverServices();
+      bool foundAnyNotify = false;
       
       for (final service in services) {
-        if (service.uuid.toString().toLowerCase() == serviceUuid.toLowerCase()) {
-          for (final char in service.characteristics) {
-            if (char.uuid.toString().toLowerCase() == characteristicUuid.toLowerCase()) {
-              _notifyCharacteristic = char;
-              
-              // Enable notifications
+        for (final char in service.characteristics) {
+          // If we can listen to it, subscribe to it!
+          if (char.properties.notify || char.properties.indicate) {
+            try {
               await char.setNotifyValue(true);
-              _notifySubscription?.cancel();
+              _notifySubscription?.cancel(); // keep only the latest or you could list them
               _notifySubscription = char.onValueReceived.listen((data) {
                 _dataController.add(data);
               });
-              
-              _updateState(BleConnectionState.connected);
-              return true;
+              foundAnyNotify = true;
+              debugPrint('BLE: Subscribed to Notify characteristic: ${char.uuid}');
+            } catch (e) {
+              debugPrint('BLE: Failed to subscribe to ${char.uuid}: $e');
             }
+          }
+          
+          // If we can write to it without response (standard for fast BMS polling)
+          // or with response, save it as our write characteristic
+          if (char.properties.writeWithoutResponse || char.properties.write) {
+            _notifyCharacteristic = char; // we'll use this for writing
+            debugPrint('BLE: Found Write characteristic: ${char.uuid}');
           }
         }
       }
 
-      // Service/characteristic not found, but still connected
-      debugPrint('BLE: Connected but JK-BMS service/characteristic not found');
-      debugPrint('BLE: Available services: ${services.map((s) => s.uuid).toList()}');
+      if (!foundAnyNotify) {
+        debugPrint('BLE: Connected but NO notify characteristics found at all!');
+      }
+
       _updateState(BleConnectionState.connected);
       return true;
     } catch (e) {
