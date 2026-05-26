@@ -142,6 +142,27 @@ class GpsService {
     );
 
     try {
+      // Fetch initial position quickly to populate UI right away
+      try {
+        final initialPos = await Geolocator.getLastKnownPosition();
+        if (initialPos != null) {
+          final gpsData = GpsData(
+            latitude: initialPos.latitude,
+            longitude: initialPos.longitude,
+            altitude: initialPos.altitude,
+            speedKmh: (initialPos.speed * 3.6).clamp(0.0, 200.0),
+            heading: initialPos.heading,
+            accuracy: initialPos.accuracy,
+            timestamp: initialPos.timestamp,
+          );
+          _lastData = gpsData;
+          _controller.add(gpsData);
+          debugPrint('GPS: Emitted initial last known position');
+        }
+      } catch (e) {
+        debugPrint('GPS: Could not fetch initial last known position: $e');
+      }
+
       _positionSubscription = Geolocator.getPositionStream(
         locationSettings: locationSettings,
       ).listen(

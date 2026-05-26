@@ -39,7 +39,14 @@ final currentPositionProvider = Provider<GpsData?>((ref) {
   final gpsAsync = ref.watch(gpsStreamProvider);
   return gpsAsync.maybeWhen(
     data: (data) => data,
-    orElse: () => null,
+    orElse: () {
+      final gpsService = ref.read(gpsServiceProvider);
+      // Return last known data if valid
+      if (gpsService.lastData.latitude != 0 && gpsService.lastData.longitude != 0) {
+        return gpsService.lastData;
+      }
+      return null;
+    },
   );
 });
 

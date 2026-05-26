@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:permission_handler/permission_handler.dart';
 import 'package:voltride/core/theme.dart';
 import 'package:voltride/pages/main_shell.dart';
 import 'package:voltride/services/gps_service.dart';
@@ -52,9 +53,27 @@ class _SplashPageState extends ConsumerState<SplashPage>
     await Future.delayed(const Duration(milliseconds: 1500));
     
     setState(() {
-      _statusText = 'Requesting Location Permission...';
+      _statusText = 'Requesting Permissions...';
     });
     await Future.delayed(const Duration(milliseconds: 500));
+
+    if (!kIsWeb) {
+      try {
+        // Request essential permissions upfront
+        Map<Permission, PermissionStatus> statuses = await [
+          Permission.bluetoothScan,
+          Permission.bluetoothConnect,
+          Permission.location,
+        ].request();
+
+        bool anyDenied = statuses.values.any((status) => status.isDenied || status.isPermanentlyDenied);
+        if (anyDenied) {
+          debugPrint('SPLASH: Some permissions were denied: $statuses');
+        }
+      } catch (e) {
+        debugPrint('SPLASH: Permission request error: $e');
+      }
+    }
 
     // Start GPS with proper permission handling
     try {

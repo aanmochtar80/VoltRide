@@ -391,10 +391,15 @@ class _BleScannerPageState extends ConsumerState<BleScannerPage> {
                           Text(
                             _isScanning 
                                 ? 'Scanning for BMS devices...' 
-                                : _adapterState != BluetoothAdapterState.on && !kIsWeb
+                                : _adapterState == BluetoothAdapterState.off && !kIsWeb
                                     ? 'Turn on Bluetooth to scan'
-                                    : 'No BLE devices found',
-                            style: const TextStyle(color: VoltRideTheme.textMuted, fontSize: 13),
+                                    : _adapterState == BluetoothAdapterState.unauthorized && !kIsWeb
+                                        ? 'Permission required to scan'
+                                        : 'No BLE devices found',
+                            style: const TextStyle(
+                              color: VoltRideTheme.textSecondary,
+                              fontSize: 14,
+                            ),
                           ),
                           if (_isScanning) ...[
                             const SizedBox(height: 8),
