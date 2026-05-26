@@ -155,104 +155,139 @@ class _SplashPageState extends ConsumerState<SplashPage>
         decoration: const BoxDecoration(
           gradient: VoltRideTheme.backgroundGradient,
         ),
-        child: Center(
+        child: SafeArea(
           child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              AnimatedBuilder(
-                animation: _controller,
-                builder: (context, child) {
-                  return Transform.scale(
-                    scale: _scaleAnimation.value,
-                    child: Opacity(
-                      opacity: _opacityAnimation.value,
-                      child: child,
-                    ),
-                  );
-                },
+              Expanded(
+                child: Center(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      AnimatedBuilder(
+                        animation: _controller,
+                        builder: (context, child) {
+                          return Transform.scale(
+                            scale: _scaleAnimation.value,
+                            child: Opacity(
+                              opacity: _opacityAnimation.value,
+                              child: child,
+                            ),
+                          );
+                        },
+                        child: Column(
+                          children: [
+                            // Outer neon circular glow around lightning icon
+                            Container(
+                              width: 120,
+                              height: 120,
+                              decoration: BoxDecoration(
+                                shape: BoxShape.circle,
+                                color: VoltRideTheme.electricBlue.withOpacity(0.05),
+                                border: Border.all(
+                                  color: VoltRideTheme.electricBlue.withOpacity(0.3),
+                                  width: 2,
+                                ),
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: VoltRideTheme.electricBlue.withOpacity(0.2),
+                                    blurRadius: 30,
+                                    spreadRadius: 5,
+                                  ),
+                                ],
+                              ),
+                              child: const Center(
+                                child: Icon(
+                                  Icons.bolt,
+                                  color: VoltRideTheme.electricBlue,
+                                  size: 72,
+                                ),
+                              ),
+                            ),
+                            const SizedBox(height: 32),
+                            // VoltRide neon title
+                            Text(
+                              'VOLTRIDE',
+                              style: GoogleFonts.outfit(
+                                fontSize: 44,
+                                fontWeight: FontWeight.w900,
+                                letterSpacing: 8,
+                                color: Colors.white,
+                                shadows: [
+                                  BoxShadow(
+                                    color: VoltRideTheme.electricBlue.withOpacity(0.8),
+                                    blurRadius: 15,
+                                    spreadRadius: 2,
+                                  ),
+                                ],
+                              ),
+                            ),
+                            const SizedBox(height: 8),
+                            // Subtitle
+                            Text(
+                              'EV TELEMETRY & SMART DASHBOARD',
+                              style: GoogleFonts.inter(
+                                fontSize: 10,
+                                fontWeight: FontWeight.w600,
+                                color: VoltRideTheme.textSecondary,
+                                letterSpacing: 2,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: 80),
+                      // Loading indicator
+                      const SizedBox(
+                        width: 40,
+                        height: 40,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 3,
+                          valueColor: AlwaysStoppedAnimation<Color>(VoltRideTheme.neonGreen),
+                        ),
+                      ),
+                      const SizedBox(height: 24),
+                      // Dynamic status message
+                      AnimatedSwitcher(
+                        duration: const Duration(milliseconds: 300),
+                        child: Text(
+                          _statusText,
+                          key: ValueKey(_statusText),
+                          style: const TextStyle(
+                            color: VoltRideTheme.textMuted,
+                            fontSize: 12,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              // Branding Footer
+              Padding(
+                padding: const EdgeInsets.only(bottom: 24.0),
                 child: Column(
                   children: [
-                    // Outer neon circular glow around lightning icon
-                    Container(
-                      width: 120,
-                      height: 120,
-                      decoration: BoxDecoration(
-                        shape: BoxShape.circle,
-                        color: VoltRideTheme.electricBlue.withOpacity(0.05),
-                        border: Border.all(
-                          color: VoltRideTheme.electricBlue.withOpacity(0.3),
-                          width: 2,
-                        ),
-                        boxShadow: [
-                          BoxShadow(
-                            color: VoltRideTheme.electricBlue.withOpacity(0.2),
-                            blurRadius: 30,
-                            spreadRadius: 5,
-                          ),
-                        ],
-                      ),
-                      child: const Center(
-                        child: Icon(
-                          Icons.bolt,
-                          color: VoltRideTheme.electricBlue,
-                          size: 72,
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 32),
-                    // VoltRide neon title
                     Text(
-                      'VOLTRIDE',
-                      style: GoogleFonts.outfit(
-                        fontSize: 44,
-                        fontWeight: FontWeight.w900,
-                        letterSpacing: 8,
-                        color: Colors.white,
-                        shadows: [
-                          BoxShadow(
-                            color: VoltRideTheme.electricBlue.withOpacity(0.8),
-                            blurRadius: 15,
-                            spreadRadius: 2,
-                          ),
-                        ],
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    // Subtitle
-                    Text(
-                      'EV TELEMETRY & SMART DASHBOARD',
+                      'Powered By :',
                       style: GoogleFonts.inter(
                         fontSize: 10,
-                        fontWeight: FontWeight.w600,
-                        color: VoltRideTheme.textSecondary,
-                        letterSpacing: 2,
+                        fontWeight: FontWeight.w400,
+                        color: VoltRideTheme.textMuted,
+                        letterSpacing: 1.5,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      'MAKASSAR ELECTRIC VEHICLES',
+                      style: GoogleFonts.outfit(
+                        fontSize: 14,
+                        fontWeight: FontWeight.bold,
+                        color: VoltRideTheme.neonGreen,
+                        letterSpacing: 2.0,
                       ),
                     ),
                   ],
-                ),
-              ),
-              const SizedBox(height: 80),
-              // Loading indicator
-              const SizedBox(
-                width: 40,
-                height: 40,
-                child: CircularProgressIndicator(
-                  strokeWidth: 3,
-                  valueColor: AlwaysStoppedAnimation<Color>(VoltRideTheme.neonGreen),
-                ),
-              ),
-              const SizedBox(height: 24),
-              // Dynamic status message
-              AnimatedSwitcher(
-                duration: const Duration(milliseconds: 300),
-                child: Text(
-                  _statusText,
-                  key: ValueKey(_statusText),
-                  style: const TextStyle(
-                    color: VoltRideTheme.textMuted,
-                    fontSize: 12,
-                    fontWeight: FontWeight.w500,
-                  ),
                 ),
               ),
             ],
