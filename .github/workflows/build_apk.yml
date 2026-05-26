@@ -27,10 +27,20 @@ jobs:
 
       - name: Configure Android Support
         run: |
+          mkdir -p /tmp/backup
+          if [ -f "android/app/src/main/AndroidManifest.xml" ]; then
+            cp android/app/src/main/AndroidManifest.xml /tmp/backup/AndroidManifest.xml
+          fi
+          
           rm -rf android
           echo "Running flutter create..."
           flutter create . --platforms android > create_log.txt 2>&1 || true
           cat create_log.txt
+          
+          if [ -f "/tmp/backup/AndroidManifest.xml" ]; then
+            cp /tmp/backup/AndroidManifest.xml android/app/src/main/AndroidManifest.xml
+            echo "Restored custom AndroidManifest.xml"
+          fi
           
           if [ -d "android/app" ]; then
             echo "Android folder created successfully."
