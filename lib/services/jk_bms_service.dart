@@ -42,18 +42,28 @@ class JkBmsService {
 
     // Start polling the BMS every 1.5 seconds
     _pollingTimer?.cancel();
-    _pollingTimer = Timer.periodic(const Duration(milliseconds: 1500), (_) {
-      if (_bleService.isConnected) {
-        // Send modern JK BMS protocol read command
-        _bleService.writeData(JkBmsService.buildReadCommand());
-        
-        // Send legacy JK BMS protocol read command (for older versions like some Mx1200 variants)
-        Future.delayed(const Duration(milliseconds: 200), () {
-          if (_bleService.isConnected) {
-            _bleService.writeData(JkBmsService.buildLegacyReadCommand());
-          }
-        });
+    int _pollStep = 0;
+    _pollingTimer = Timer.periodic(const Duration(milliseconds: 500), (_) {
+      if (!_bleService.isConnected) return;
+      
+      // Cycle through different known JK BMS polling commands
+      switch (_pollStep % 4) {
+        case 0:
+          _bleService.writeData(JkBmsService.buildReadCommand());
+          break;
+        case 1:
+          _bleService.writeData(JkBmsService.buildLegacyReadCommand());
+          break;
+        case 2:
+          // RS485 Short Probe A0 (55 AA 00 FF 00 00 FE)
+          _bleService.writeData([0x55, 0xAA, 0x00, 0xFF, 0x00, 0x00, 0xFE]);
+          break;
+        case 3:
+          // RS485 Short Probe A16 (55 AA 10 FF 00 00 0E)
+          _bleService.writeData([0x55, 0xAA, 0x10, 0xFF, 0x00, 0x00, 0x0E]);
+          break;
       }
+      _pollStep++;
     });
   }
 
@@ -115,18 +125,22 @@ class JkBmsService {
 
   /// Try to parse a complete JK-BMS frame from the buffer
   void _tryParseFrame() {
-    // JK-BMS frame format:
-    // Header: 0x4E 0x57 (NW)
-    // Length: 2 bytes
-    // Data...
-    // Checksum
-    
     while (_buffer.length >= 4) {
-      // Find frame header 0x4E57
+      // Find frame header 0x4E57 (Modern) or 0x55AA (Legacy)
       int headerIndex = -1;
+      bool isLegacy = false;
+      
       for (int i = 0; i < _buffer.length - 1; i++) {
         if (_buffer[i] == 0x4E && _buffer[i + 1] == 0x57) {
           headerIndex = i;
+          isLegacy = false;
+          break;
+        }
+        if (i < _buffer.length - 3 && 
+            _buffer[i] == 0x55 && _buffer[i + 1] == 0xAA && 
+            _buffer[i + 2] == 0xEB && _buffer[i + 3] == 0x90) {
+          headerIndex = i;
+          isLegacy = true;
           break;
         }
       }
@@ -140,22 +154,142 @@ class JkBmsService {
         _buffer.removeRange(0, headerIndex);
       }
 
-      if (_buffer.length < 4) return;
-
-      // Get frame length
-      final frameLen = (_buffer[2] << 8) | _buffer[3];
-      if (_buffer.length < frameLen) return;
-
-      // Extract frame
-      final frame = _buffer.sublist(0, frameLen);
-      _buffer.removeRange(0, frameLen);
-
-      // Parse the frame data
-      _parseJkBmsFrame(Uint8List.fromList(frame));
+      if (isLegacy) {
+        if (_buffer.length < 300) return; // Legacy frame is always exactly 300 bytes
+        final frame = _buffer.sublist(0, 300);
+        _buffer.removeRange(0, 300);
+        _parseLegacyJkBmsFrame(Uint8List.fromList(frame));
+      } else {
+        if (_buffer.length < 4) return;
+        // Get frame length for modern protocol
+        final frameLen = (_buffer[2] << 8) | _buffer[3];
+        if (_buffer.length < frameLen) return;
+        final frame = _buffer.sublist(0, frameLen);
+        _buffer.removeRange(0, frameLen);
+        _parseJkBmsFrame(Uint8List.fromList(frame));
+      }
     }
   }
 
-  /// Parse JK-BMS response frame
+  void _parseLegacyJkBmsFrame(Uint8List frame) {
+    if (frame.length < 300) return;
+    
+    // Verify CRC
+    int crc = 0;
+    for (int i = 0; i < 299; i++) {
+      crc = (crc + frame[i]) & 0xFF;
+    }
+    if (crc != frame[299]) {
+      debugPrint('Legacy JK-BMS CRC failed');
+      return;
+    }
+
+    int frameType = frame[4];
+    if (frameType != 0x02) return; // Only process cell info frame
+
+    try {
+      int get16(int i) => (frame[i + 1] << 8) | frame[i];
+      int get32(int i) => (frame[i + 3] << 24) | (frame[i + 2] << 16) | (frame[i + 1] << 8) | frame[i];
+
+      // Voltages
+      List<double> cellVoltages = [];
+      for (int i = 0; i < 24; i++) {
+        int mv = get16(6 + i * 2);
+        if (mv > 0) cellVoltages.add(mv / 1000.0);
+      }
+
+      double voltage = get32(118) * 0.001;
+      if (voltage < 0.5 && cellVoltages.isNotEmpty) {
+        voltage = cellVoltages.reduce((a, b) => a + b);
+      }
+
+      double current = 0;
+      double soc = 0;
+      double capacity = 0;
+      double capacityTotal = 0;
+      int cycleCount = 0;
+      double tempMos = 0;
+      double temp1 = 0;
+      double temp2 = 0;
+      bool isCharging = false;
+      bool isDischarging = false;
+
+      // Detect firmware variant
+      bool variantLayout = (frame[173] > 0 && frame[173] <= 100 && get32(174) > 1000 && get32(178) > 1000);
+
+      if (variantLayout) {
+        int curRaw = get32(158);
+        if (curRaw > 0x7FFFFFFF) curRaw -= 0x100000000;
+        current = curRaw * 0.001;
+
+        soc = frame[173].toDouble();
+        capacity = get32(174) * 0.001;
+        capacityTotal = get32(178) * 0.001;
+        cycleCount = get32(182);
+
+        int mosRaw = get16(144);
+        if (mosRaw > 0x7FFF) mosRaw -= 0x10000;
+        tempMos = mosRaw * 0.1;
+
+        int b1Raw = get16(162);
+        if (b1Raw > 0x7FFF) b1Raw -= 0x10000;
+        temp1 = b1Raw * 0.1;
+
+        int b2Raw = get16(164);
+        if (b2Raw > 0x7FFF) b2Raw -= 0x10000;
+        temp2 = b2Raw * 0.1;
+
+        isCharging = frame[198] != 0;
+        isDischarging = frame[199] != 0;
+      } else {
+        int curRaw = get32(126);
+        if (curRaw > 0x7FFFFFFF) curRaw -= 0x100000000;
+        current = curRaw * 0.001;
+
+        soc = frame[141].toDouble();
+        capacity = get32(142) * 0.001;
+        capacityTotal = get32(146) * 0.001;
+        cycleCount = get32(150);
+
+        int mosRaw = get16(134);
+        if (mosRaw > 0x7FFF) mosRaw -= 0x10000;
+        tempMos = mosRaw * 0.1;
+
+        int b1Raw = get16(130);
+        if (b1Raw > 0x7FFF) b1Raw -= 0x10000;
+        temp1 = b1Raw * 0.1;
+
+        int b2Raw = get16(132);
+        if (b2Raw > 0x7FFF) b2Raw -= 0x10000;
+        temp2 = b2Raw * 0.1;
+
+        isCharging = frame[166] != 0;
+        isDischarging = frame[167] != 0;
+      }
+
+      if (current.abs() < 0.05) current = 0;
+
+      final bmsData = BmsData(
+        voltageTotal: voltage,
+        current: current,
+        soc: soc,
+        capacityRemaining: capacity,
+        capacityTotal: capacityTotal,
+        powerWatt: voltage * current.abs(),
+        cellVoltages: cellVoltages,
+        temperatures: [tempMos, temp1, temp2],
+        isCharging: isCharging,
+        isDischarging: isDischarging,
+        cycleCount: cycleCount,
+        timestamp: DateTime.now(),
+      );
+
+      _lastData = bmsData;
+      _dataController.add(bmsData);
+    } catch (e) {
+      debugPrint('Legacy JK-BMS Parse error: $e');
+    }
+  }
   void _parseJkBmsFrame(Uint8List frame) {
     try {
       if (frame.length < 11) return;
