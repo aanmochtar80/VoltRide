@@ -7,11 +7,57 @@ import 'package:voltride/pages/settings_page.dart';
 import 'package:voltride/pages/trip_history_page.dart';
 import 'package:voltride/providers/app_providers.dart';
 
-class MainShell extends ConsumerWidget {
+import 'package:flutter_blue_plus/flutter_blue_plus.dart';
+import 'package:voltride/services/ble_service.dart';
+
+class MainShell extends ConsumerStatefulWidget {
   const MainShell({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<MainShell> createState() => _MainShellState();
+}
+
+class _MainShellState extends ConsumerState<MainShell> {
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _tryAutoConnect();
+    });
+  }
+
+  Future<void> _tryAutoConnect() async {
+    final settings = ref.read(settingsProvider);
+    if (settings.lastConnectedDeviceId != null && settings.lastConnectedDeviceId!.isNotEmpty) {
+      // Don't auto-connect to the simulator
+      if (settings.lastConnectedDeviceId == 'SIM-001') return;
+
+      final bleService = ref.read(bleServiceProvider);
+      if (bleService.state == BleConnectionState.disconnected) {
+        try {
+          final device = BluetoothDevice.fromId(settings.lastConnectedDeviceId!);
+          final success = await bleService.connectToDevice(device);
+          if (success) {
+            ref.read(jkBmsServiceProvider).startListening();
+            if (mounted) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: Text('Auto-connected to ${settings.lastConnectedDeviceName ?? 'BMS'}!'),
+                  backgroundColor: VoltRideTheme.neonGreen,
+                  behavior: SnackBarBehavior.floating,
+                ),
+              );
+            }
+          }
+        } catch (e) {
+          debugPrint('Auto connect failed: $e');
+        }
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final pageIndex = ref.watch(currentPageIndexProvider);
 
     final List<Widget> pages = [

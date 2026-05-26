@@ -77,8 +77,11 @@ class _BleScannerPageState extends ConsumerState<BleScannerPage> {
       (results) {
         if (mounted) {
           setState(() {
+            // Filter out unnamed devices to avoid clutter
+            final namedResults = results.where((r) => _getDeviceName(r) != 'Unknown Device').toList();
+            
             // Sort: JK-BMS devices first, then by signal strength (RSSI)
-            _scanResults = List<ScanResult>.from(results)
+            _scanResults = List<ScanResult>.from(namedResults)
               ..sort((a, b) {
                 final aIsJk = _isJkBmsDevice(a);
                 final bIsJk = _isJkBmsDevice(b);
@@ -160,6 +163,27 @@ class _BleScannerPageState extends ConsumerState<BleScannerPage> {
       appBar: AppBar(
         title: const Text('BMS SCANNER'),
         actions: [
+          Row(
+            children: [
+              const Text('BLE', style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold)),
+              Switch(
+                value: _adapterState == BluetoothAdapterState.on,
+                activeColor: VoltRideTheme.neonGreen,
+                onChanged: (val) {
+                  if (val) {
+                    _turnOnBluetooth();
+                  } else {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                        content: Text('Android prevents apps from turning off Bluetooth. Please turn it off in system settings.'),
+                        backgroundColor: VoltRideTheme.alertRed,
+                      ),
+                    );
+                  }
+                },
+              ),
+            ],
+          ),
           if (_isScanning)
             IconButton(
               icon: const SizedBox(
@@ -238,76 +262,7 @@ class _BleScannerPageState extends ConsumerState<BleScannerPage> {
               ),
             ),
 
-            // ── EV Simulator Neon Mode ──
-            Container(
-              padding: const EdgeInsets.all(16),
-              margin: const EdgeInsets.symmetric(horizontal: 16),
-              decoration: VoltRideTheme.glowCard(
-                glowColor: bmsService.isUsingDummyData ? VoltRideTheme.electricBlue : VoltRideTheme.cardBorder,
-              ),
-              child: Row(
-                children: [
-                  Container(
-                    padding: const EdgeInsets.all(12),
-                    decoration: BoxDecoration(
-                      color: VoltRideTheme.electricBlue.withOpacity(0.15),
-                      shape: BoxShape.circle,
-                    ),
-                    child: const Icon(
-                      Icons.electric_car,
-                      color: VoltRideTheme.electricBlue,
-                      size: 28,
-                    ),
-                  ),
-                  const SizedBox(width: 16),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          'EV Simulator',
-                          style: GoogleFonts.inter(
-                            color: Colors.white,
-                            fontSize: 15,
-                            fontWeight: FontWeight.w700,
-                          ),
-                        ),
-                        const SizedBox(height: 2),
-                        Text(
-                          bmsService.isUsingDummyData ? 'Running virtual EV telemetry' : 'Run app in desktop simulator',
-                          style: const TextStyle(
-                            color: VoltRideTheme.textSecondary,
-                            fontSize: 11,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  Switch(
-                    value: bmsService.isUsingDummyData,
-                    activeColor: VoltRideTheme.neonGreen,
-                    onChanged: (val) {
-                      if (val) {
-                        ref.read(jkBmsServiceProvider).startDummyMode();
-                        // Automatically update settings with simulated info
-                        ref.read(settingsProvider.notifier).setLastConnectedDevice('SIM-001', 'VoltRide EV Simulator');
-                        // Set state as connected
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(
-                            content: Text('EV Simulation mode activated!'),
-                            backgroundColor: VoltRideTheme.electricBlue,
-                            behavior: SnackBarBehavior.floating,
-                          ),
-                        );
-                      } else {
-                        ref.read(jkBmsServiceProvider).stopDummyMode();
-                      }
-                      setState(() {});
-                    },
-                  ),
-                ],
-              ),
-            ),
+
 
             const SizedBox(height: 20),
 
