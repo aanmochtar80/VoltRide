@@ -47,7 +47,7 @@ class JkBmsService {
       if (!_bleService.isConnected) return;
       
       // Cycle through different known JK BMS polling commands
-      switch (_pollStep % 8) {
+      switch (_pollStep % 11) {
         case 0:
           _bleService.writeData(JkBmsService.buildLegacyReadCommand(0x97)); // Init AA55
           break;
@@ -70,6 +70,15 @@ class JkBmsService {
           _bleService.writeData(JkBmsService.buildLegacyReverseReadCommand(0x95)); // Old All Data 55AA
           break;
         case 7:
+          _bleService.writeData([0x55, 0xAA, 0x00, 0xFF, 0x00, 0x00, 0xFE]); // Short RS485 Addr 0
+          break;
+        case 8:
+          _bleService.writeData([0x55, 0xAA, 0x01, 0xFF, 0x00, 0x00, 0xFF]); // Short RS485 Addr 1
+          break;
+        case 9:
+          _bleService.writeData([0x55, 0xAA, 0x10, 0xFF, 0x00, 0x00, 0x0E]); // Short RS485 Addr 16
+          break;
+        case 10:
           _bleService.writeData(JkBmsService.buildReadCommand()); // Modern 4E 57
           break;
       }

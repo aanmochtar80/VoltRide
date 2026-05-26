@@ -13,8 +13,8 @@ enum BleConnectionState {
 
 class BleService {
   BluetoothDevice? _connectedDevice;
-  BluetoothCharacteristic? _notifyCharacteristic;
-  StreamSubscription<List<int>>? _notifySubscription;
+  final List<BluetoothCharacteristic> _writeCharacteristics = [];
+  final List<StreamSubscription<List<int>>> _notifySubscriptions = [];
   StreamSubscription<BluetoothConnectionState>? _connectionSubscription;
   StreamSubscription<bool>? _isScanningSubscription;
   
@@ -202,6 +202,7 @@ class BleService {
         debugPrint('BLE: Failed to request MTU: $e');
       }
 
+      _writeCharacteristics.clear();
       // Discover services and automatically find TX/RX characteristics
       final services = await device.discoverServices();
       bool foundAnyNotify = false;
@@ -211,14 +212,13 @@ class BleService {
           final uuid = char.uuid.toString().toLowerCase();
           
           // Try to listen to it if it supports notify/indicate OR if it's the known JK-BMS characteristic (ffe1/ffe2/ffe3)
-          // Some cheap BLE modules don't advertise their properties correctly.
-          if (char.properties.notify || char.properties.indicate || uuid.contains('ffe1') || uuid.contains('ffe2') || uuid.contains('ffe3')) {
+          if (char.properties.notify || char.properties.indicate || uuid.contains('ffe1') || uuid.contains('ffe2') || uuid.contains('ffe3') || uuid.contains('ff10')) {
             try {
               await char.setNotifyValue(true);
-              _notifySubscription?.cancel(); // keep only the latest or you could list them
-              _notifySubscription = char.onValueReceived.listen((data) {
+              final sub = char.onValueReceived.listen((data) {
                 _dataController.add(data);
               });
+              _notifySubscriptions.add(sub);
               foundAnyNotify = true;
               debugPrint('BLE: Subscribed to Notify characteristic: $uuid');
             } catch (e) {
@@ -226,11 +226,10 @@ class BleService {
             }
           }
           
-          // If we can write to it without response (standard for fast BMS polling)
-          // or with response, save it as our write characteristic
-          if (char.properties.writeWithoutResponse || char.properties.write || uuid.contains('ffe1') || uuid.contains('ffe2') || uuid.contains('ffe3')) {
-            _notifyCharacteristic = char; // we'll use this for writing
-            debugPrint('BLE: Found Write characteristic: $uuid');
+          // Collect ALL writable characteristics
+          if (char.properties.writeWithoutResponse || char.properties.write || uuid.contains('ffe1') || uuid.contains('ffe2') || uuid.contains('ffe3') || uuid.contains('ff10')) {
+            _writeCharacteristics.add(char);
+            debugPrint('BLE: Added Write characteristic: $uuid');
           }
         }
       }
@@ -250,9 +249,11 @@ class BleService {
 
   void _handleDisconnection() {
     _updateState(BleConnectionState.disconnected);
-    _notifySubscription?.cancel();
-    _notifySubscription = null;
-    _notifyCharacteristic = null;
+    for (final sub in _notifySubscriptions) {
+      sub.cancel();
+    }
+    _notifySubscriptions.clear();
+    _writeCharacteristics.clear();
     _connectedDevice = null;
 
     // Auto-reconnect
@@ -284,7 +285,10 @@ class BleService {
     
     try {
       _updateState(BleConnectionState.disconnecting);
-      _notifySubscription?.cancel();
+      for (final sub in _notifySubscriptions) {
+        sub.cancel();
+      }
+      _notifySubscriptions.clear();
       _connectionSubscription?.cancel();
       await _connectedDevice?.disconnect();
     } catch (e) {
@@ -292,17 +296,19 @@ class BleService {
     }
     
     _connectedDevice = null;
-    _notifyCharacteristic = null;
+    _writeCharacteristics.clear();
     _updateState(BleConnectionState.disconnected);
   }
 
   Future<void> writeData(List<int> data) async {
-    if (_notifyCharacteristic == null) return;
-    try {
-      final withoutResp = _notifyCharacteristic!.properties.writeWithoutResponse;
-      await _notifyCharacteristic!.write(data, withoutResponse: withoutResp);
-    } catch (e) {
-      debugPrint('BLE Write error: $e');
+    if (_writeCharacteristics.isEmpty) return;
+    for (final char in _writeCharacteristics) {
+      try {
+        final withoutResp = char.properties.writeWithoutResponse;
+        await char.write(data, withoutResponse: withoutResp);
+      } catch (e) {
+        debugPrint('BLE Write error on ${char.uuid}: $e');
+      }
     }
   }
 
@@ -312,7 +318,10 @@ class BleService {
 
   void dispose() {
     _reconnectTimer?.cancel();
-    _notifySubscription?.cancel();
+    for (final sub in _notifySubscriptions) {
+      sub.cancel();
+    }
+    _notifySubscriptions.clear();
     _connectionSubscription?.cancel();
     _isScanningSubscription?.cancel();
     _connectionStateController.close();
